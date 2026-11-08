@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Schematic Factory</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
@@ -16,7 +16,7 @@
       </div>
       <div class="goal-box">
         <div class="goal-preview">
-          <canvas id="goalCanvas" width="36" height="36"></canvas>
+          <canvas id="goalCanvas" width="40" height="40"></canvas>
         </div>
         <div class="goal-info">
           <div id="goalTitle" class="goal-name">Dostarcz Koła</div>
@@ -49,8 +49,8 @@
   </div>
 
   <div id="toolbar">
-    <button class="tool-btn active" data-tool="belt">Taśma <span class="shortcut">[1]</span></button>
-    <button class="tool-btn" data-tool="miner">Kopalnia <span class="shortcut">[2]</span></button>
+    <button class="tool-btn active" data-tool="belt" id="tool-belt">Taśma <span class="shortcut">[1]</span></button>
+    <button class="tool-btn" data-tool="miner" id="tool-miner">Kopalnia <span class="shortcut">[2]</span></button>
     <button class="tool-btn" data-tool="cutter" id="tool-cutter" disabled>Krajalnica <span class="shortcut">[3] 🔒</span></button>
     <button class="tool-btn" data-tool="rotator" id="tool-rotator" disabled>Obracarka <span class="shortcut">[4] 🔒</span></button>
     <button class="tool-btn" data-tool="merger" id="tool-merger" disabled>Łączarka <span class="shortcut">[5] 🔒</span></button>
@@ -58,16 +58,23 @@
     <button class="tool-btn" data-tool="mixer" id="tool-mixer" disabled>Mikser <span class="shortcut">[7] 🔒</span></button>
     <button class="tool-btn" data-tool="tunnel_in" id="tool-tunnel_in" disabled>Tunel In <span class="shortcut">[8] 🔒</span></button>
     <button class="tool-btn" data-tool="tunnel_out" id="tool-tunnel_out" disabled>Tunel Out <span class="shortcut">[9] 🔒</span></button>
-    <button class="tool-btn" data-tool="delete">Kasownik <span class="shortcut">[0]</span></button>
+    <button class="tool-btn" data-tool="delete" id="tool-delete">Kasownik <span class="shortcut">[0]</span></button>
   </div>
 
   <div id="hints" class="panel">
-    <strong>Auto-save:</strong> Co 5s gra zapisuje się w pamięci podręcznej<br>
-    <strong>Obrót:</strong> Klawisz <kbd>R</kbd> | <strong>Przesuwanie:</strong> <kbd>PPM</kbd> / <kbd>ŚPM</kbd>
+    <strong>Krajalnica:</strong> Wlot z tyłu, prawa połówka na wprost, lewa w bok<br>
+    <strong>Obrót:</strong> Klawisz <kbd>R</kbd> | <strong>Kamera:</strong> <kbd>PPM</kbd> / <kbd>ŚPM</kbd> | <strong>Zoom:</strong> Kółko
   </div>
 
   <canvas id="gameCanvas"></canvas>
 
-  <script type="module" src="./src/main.js"></script>
+  <!-- Klasyczne ładowanie skryptów po kolei - brak problemów z CORS i 404 w podfolderach -->
+  <script defer src="./config.js"></script>
+  <script defer src="./state.js"></script>
+  <script defer src="./storage.js"></script>
+  <script defer src="./renderer.js"></script>
+  <script defer src="./logic.js"></script>
+  <script defer src="./input.js"></script>
+  <script defer src="./main.js"></script>
 </body>
 </html>
