@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Schematic Factory</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="ui">
+    <!-- Główny Cel Poziomu -->
+    <div class="panel">
+      <div class="title">
+        <span>Główny Poziom Bazy</span>
+        <span id="levelBadge">POZIOM 1</span>
+      </div>
+      <div class="goal-box">
+        <div class="goal-preview">
+          <canvas id="goalCanvas" width="36" height="36"></canvas>
+        </div>
+        <div class="goal-info">
+          <div id="goalTitle" class="goal-name">Dostarcz Koła</div>
+          <div class="progress-bar">
+            <div id="goalProgressFill" class="progress-fill"></div>
+          </div>
+          <div id="goalProgressText" class="progress-text">0 / 20</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Punkty Badań i Ulepszenia -->
+    <div class="panel">
+      <div class="title">
+        <span>Punkty Badawcze</span>
+        <button id="resetSaveBtn" class="danger-btn" title="Resetuje cały zapis gry">Zresetuj zapis</button>
+      </div>
+      <div id="scienceDisplay" class="science-score">0 ⚙</div>
+      <div class="upgrade-list">
+        <button id="upgBelt" class="upgrade-btn">
+          <span>Prędkość Taśm <small id="beltLvl">(Poz. 1)</small></span>
+          <span id="beltCost">25 ⚙</span>
+        </button>
+        <button id="upgMiner" class="upgrade-btn">
+          <span>Szybkość Kopalń <small id="minerLvl">(Poz. 1)</small></span>
+          <span id="minerCost">30 ⚙</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toolbar">
+    <button class="tool-btn active" data-tool="belt">Taśma <span class="shortcut">[1]</span></button>
+    <button class="tool-btn" data-tool="miner">Kopalnia <span class="shortcut">[2]</span></button>
+    <button class="tool-btn" data-tool="cutter" id="tool-cutter" disabled>Krajalnica <span class="shortcut">[3] 🔒</span></button>
+    <button class="tool-btn" data-tool="rotator" id="tool-rotator" disabled>Obracarka <span class="shortcut">[4] 🔒</span></button>
+    <button class="tool-btn" data-tool="merger" id="tool-merger" disabled>Łączarka <span class="shortcut">[5] 🔒</span></button>
+    <button class="tool-btn" data-tool="painter" id="tool-painter" disabled>Malarz <span class="shortcut">[6] 🔒</span></button>
+    <button class="tool-btn" data-tool="mixer" id="tool-mixer" disabled>Mikser <span class="shortcut">[7] 🔒</span></button>
+    <button class="tool-btn" data-tool="tunnel_in" id="tool-tunnel_in" disabled>Tunel In <span class="shortcut">[8] 🔒</span></button>
+    <button class="tool-btn" data-tool="tunnel_out" id="tool-tunnel_out" disabled>Tunel Out <span class="shortcut">[9] 🔒</span></button>
+    <button class="tool-btn" data-tool="delete">Kasownik <span class="shortcut">[0]</span></button>
+  </div>
+
+  <div id="hints" class="panel">
+    <strong>Auto-save:</strong> Co 5s gra zapisuje się w pamięci podręcznej<br>
+    <strong>Obrót:</strong> Klawisz <kbd>R</kbd> | <strong>Przesuwanie:</strong> <kbd>PPM</kbd> / <kbd>ŚPM</kbd>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

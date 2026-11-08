@@ -1,0 +1,185 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #10131a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+  color: #e0e6ed;
+}
+#gameCanvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  cursor: crosshair;
+}
+#ui {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 320px;
+}
+.panel {
+  background: rgba(22, 27, 34, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  pointer-events: auto;
+}
+.title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #8b949e;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.goal-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+.goal-preview {
+  width: 44px;
+  height: 44px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.goal-info { flex: 1; }
+.goal-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f0f6fc;
+  margin-bottom: 4px;
+}
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #21262d;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #238636;
+  transition: width 0.2s ease;
+}
+.progress-text {
+  font-size: 12px;
+  color: #8b949e;
+  font-weight: 600;
+}
+.science-score {
+  font-size: 20px;
+  font-weight: 700;
+  color: #a371f7;
+  margin-bottom: 8px;
+}
+.upgrade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.upgrade-btn {
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: #c9d1d9;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+.upgrade-btn:hover:not(:disabled) {
+  background: #30363d;
+  border-color: #58a6ff;
+  color: #fff;
+}
+.upgrade-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.danger-btn {
+  background: transparent;
+  border: none;
+  color: #f85149;
+  font-size: 10px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.danger-btn:hover { color: #ff7b72; }
+#toolbar {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  background: rgba(22, 27, 34, 0.94);
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid #30363d;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+}
+.tool-btn {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 66px;
+  transition: all 0.15s ease;
+}
+.tool-btn:hover:not(:disabled) { background: #30363d; color: #f0f6fc; }
+.tool-btn.active { background: #1f6feb; border-color: #58a6ff; color: #fff; }
+.tool-btn:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(1); }
+.shortcut { font-size: 9px; color: #8b949e; }
+.tool-btn.active .shortcut { color: #c9d1d9; }
+#hints {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  font-size: 12px;
+  color: #8b949e;
+  text-align: right;
+  line-height: 1.6;
+}
+kbd {
+  background: #21262d;
+  border: 1px solid #484f58;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: inherit;
+  color: #f0f6fc;
+}
