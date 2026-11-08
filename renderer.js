@@ -1,14 +1,17 @@
-import { GRID_SIZE, DIRS, COLOR_MAP } from './config.js';
+window.Factory = window.Factory || {};
 
-export function drawShape(ctx, x, y, shape, size) {
+window.Factory.drawShape = function(ctx, x, y, shape, size) {
+  if (!Array.isArray(shape)) return;
+  const { COLOR_MAP } = window.Factory;
   const half = size / 2;
   const radius = size / 2;
+
   ctx.save();
   ctx.translate(x, y);
 
   for (let q = 0; q < 4; q++) {
     const quad = shape[q];
-    if (!quad) continue;
+    if (!quad || typeof quad !== 'object') continue;
 
     ctx.fillStyle = COLOR_MAP[quad.color] || COLOR_MAP.uncolored;
     ctx.strokeStyle = '#10131a';
@@ -29,9 +32,10 @@ export function drawShape(ctx, x, y, shape, size) {
     ctx.restore();
   }
   ctx.restore();
-}
+};
 
-export function drawDyeDrop(ctx, x, y, color, size) {
+window.Factory.drawDyeDrop = function(ctx, x, y, color, size) {
+  const { COLOR_MAP } = window.Factory;
   ctx.save();
   ctx.translate(x, y);
   ctx.fillStyle = COLOR_MAP[color] || '#ff4d4f';
@@ -49,16 +53,18 @@ export function drawDyeDrop(ctx, x, y, color, size) {
   ctx.fill();
 
   ctx.restore();
-}
+};
 
-export function drawBuilding(ctx, gx, gy, type, rot, alpha = 1.0) {
+window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0) {
+  const { GRID_SIZE, DIRS } = window.Factory;
   const cx = gx * GRID_SIZE + GRID_SIZE / 2;
   const cy = gy * GRID_SIZE + GRID_SIZE / 2;
+  const dirObj = DIRS[rot] || DIRS[0];
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(cx, cy);
-  ctx.rotate(DIRS[rot].angle);
+  ctx.rotate(dirObj.angle);
 
   if (type === 'belt') {
     ctx.fillStyle = '#21262d';
@@ -92,12 +98,19 @@ export function drawBuilding(ctx, gx, gy, type, rot, alpha = 1.0) {
     ctx.lineWidth = 2;
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
     ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+    // Linia cięcia
     ctx.strokeStyle = '#f0f6fc';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(0, -GRID_SIZE * 0.35);
     ctx.lineTo(0, GRID_SIZE * 0.35);
     ctx.stroke();
+    // Wskaźnik lewego wyrzutu
+    ctx.fillStyle = '#f0f6fc';
+    ctx.beginPath();
+    ctx.arc(-GRID_SIZE * 0.32, 0, 3, 0, Math.PI * 2);
+    ctx.arc(0, -GRID_SIZE * 0.32, 3, 0, Math.PI * 2);
+    ctx.fill();
   } else if (type === 'rotator') {
     ctx.fillStyle = '#1f6feb';
     ctx.strokeStyle = '#58a6ff';
@@ -177,4 +190,4 @@ export function drawBuilding(ctx, gx, gy, type, rot, alpha = 1.0) {
   }
 
   ctx.restore();
-}
+};
