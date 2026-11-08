@@ -1,6 +1,9 @@
-const SAVE_KEY = 'schematic_factory_save_v2';
+window.Factory = window.Factory || {};
 
-export function saveGame(state) {
+const SAVE_KEY = 'schematic_factory_save_v3';
+
+window.Factory.saveGame = function() {
+  const { state } = window.Factory;
   try {
     const serializedGrid = Array.from(state.grid.entries()).map(([key, b]) => ({
       key,
@@ -11,7 +14,7 @@ export function saveGame(state) {
     }));
 
     const data = {
-      version: 2,
+      version: 3,
       sciencePoints: state.sciencePoints,
       beltSpeedLvl: state.beltSpeedLvl,
       minerSpeedLvl: state.minerSpeedLvl,
@@ -22,33 +25,36 @@ export function saveGame(state) {
 
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch (err) {
-    console.error("Błąd zapisu localStorage:", err);
+    console.warn("Błąd zapisu gry:", err);
   }
-}
+};
 
-export function loadGame(state) {
+window.Factory.loadGame = function() {
+  const { state, LEVELS } = window.Factory;
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
 
     const data = JSON.parse(raw);
-    state.sciencePoints = data.sciencePoints || 0;
-    state.beltSpeedLvl = data.beltSpeedLvl || 1;
-    state.minerSpeedLvl = data.minerSpeedLvl || 1;
-    state.currentLvlIndex = data.currentLvlIndex || 0;
-    state.currentLvlProgress = data.currentLvlProgress || 0;
+    if (!data || data.version !== 3) return false;
+
+    state.sciencePoints = Number(data.sciencePoints) || 0;
+    state.beltSpeedLvl = Number(data.beltSpeedLvl) || 1;
+    state.minerSpeedLvl = Number(data.minerSpeedLvl) || 1;
+    state.currentLvlIndex = Math.min(Number(data.currentLvlIndex) || 0, LEVELS.length - 1);
+    state.currentLvlProgress = Number(data.currentLvlProgress) || 0;
 
     state.beltSpeed = 2.5 + (state.beltSpeedLvl - 1) * 1.0;
     state.minerInterval = Math.max(2, 5 - (state.minerSpeedLvl - 1));
 
-    if (Array.isArray(data.grid)) {
+    if (Array.isArray(data.grid) && data.grid.length > 0) {
       state.grid.clear();
       data.grid.forEach(b => {
         state.grid.set(b.key, {
           type: b.type,
           x: b.x,
           y: b.y,
-          rot: b.rot,
+          rot: b.rot || 0,
           timer: 0,
           storedShape: null,
           storedDye: null,
@@ -56,16 +62,21 @@ export function loadGame(state) {
           storedDyes: []
         });
       });
+      // Upewnij się, że Hub 2x2 zawsze istnieje
+      state.grid.set("0,0", { type: 'hub', x: 0, y: 0, rot: 0 });
+      state.grid.set("1,0", { type: 'hub', x: 1, y: 0, rot: 0 });
+      state.grid.set("0,1", { type: 'hub', x: 0, y: 1, rot: 0 });
+      state.grid.set("1,1", { type: 'hub', x: 1, y: 1, rot: 0 });
     }
 
     return true;
   } catch (err) {
-    console.error("Błąd odczytu localStorage:", err);
+    console.warn("Błąd wczytywania zapisu, start od nowa:", err);
     return false;
   }
-}
+};
 
-export function clearGameSave() {
+window.Factory.clearGameSave = function() {
   localStorage.removeItem(SAVE_KEY);
   window.location.reload();
-}
+};
