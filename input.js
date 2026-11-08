@@ -1,7 +1,7 @@
-import { GRID_SIZE } from './config.js';
-import { state } from './state.js';
+window.Factory = window.Factory || {};
 
-export function setupInput(canvas, onToolSelect) {
+window.Factory.setupInput = function(canvas, onToolSelect) {
+  const { state, GRID_SIZE } = window.Factory;
   let isMouseDown = false;
   let isRightMouseDown = false;
   let lastPos = { x: 0, y: 0 };
@@ -45,6 +45,8 @@ export function setupInput(canvas, onToolSelect) {
   function applySingleTool(gx, gy) {
     const key = `${gx},${gy}`;
     if (state.currentTool === 'delete') {
+      const existing = state.grid.get(key);
+      if (existing && existing.type === 'hub') return;
       state.grid.delete(key);
       state.beltItems = state.beltItems.filter(i => i.curX !== gx || i.curY !== gy);
     } else {
@@ -127,11 +129,11 @@ export function setupInput(canvas, onToolSelect) {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.15 : 0.87;
     const mouseW = screenToWorld(e.clientX, e.clientY);
-    const newZoom = Math.max(0.2, Math.min(3.0, state.camera.zoom * factor));
+    const newZoom = Math.max(0.25, Math.min(2.8, state.camera.zoom * factor));
     state.camera.x = e.clientX - mouseW.x * newZoom;
     state.camera.y = e.clientY - mouseW.y * newZoom;
     state.camera.zoom = newZoom;
-  });
+  }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') state.currentRotation = (state.currentRotation + 1) % 4;
@@ -152,4 +154,4 @@ export function setupInput(canvas, onToolSelect) {
       ? calculateBeltPath(dragStart, dragEnd)
       : null
   };
-}
+};
