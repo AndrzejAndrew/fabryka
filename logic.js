@@ -1,5 +1,4 @@
-import { DIRS, LEVELS, COLOR_MIXES, makeQuad } from './config.js';
-import { state } from './state.js';
+window.Factory = window.Factory || {};
 
 function rotateShapeRight(shape) {
   return [shape[3], shape[0], shape[1], shape[2]];
@@ -23,9 +22,11 @@ function shapesEqual(a, b) {
   return true;
 }
 
-export function runSimulationTick(onLevelChange, onScienceChange) {
+window.Factory.runSimulationTick = function(onUIUpdate) {
+  const { state, DIRS, LEVELS, COLOR_MIXES, makeQuad } = window.Factory;
+
   state.grid.forEach(b => {
-    // 1. Kopalnie: kształty lub barwniki
+    // 1. Kopalnie
     if (b.type === 'miner') {
       const patch = state.patches.get(`${b.x},${b.y}`);
       if (!patch) return;
@@ -42,11 +43,12 @@ export function runSimulationTick(onLevelChange, onScienceChange) {
           const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
           if (!occ) {
             if (patch.kind === 'shape') {
+              const q = makeQuad(patch.subType, 'uncolored');
               state.beltItems.push({
                 curX: tx,
                 curY: ty,
                 isDye: false,
-                shape: [makeQuad(patch.color), makeQuad(patch.color), makeQuad(patch.color), makeQuad(patch.color)],
+                shape: [{ ...q }, { ...q }, { ...q }, { ...q }],
                 progress: 0
               });
             } else if (patch.kind === 'dye') {
@@ -54,7 +56,7 @@ export function runSimulationTick(onLevelChange, onScienceChange) {
                 curX: tx,
                 curY: ty,
                 isDye: true,
-                dyeColor: patch.color,
+                dyeColor: patch.subType,
                 progress: 0
               });
             }
@@ -63,24 +65,36 @@ export function runSimulationTick(onLevelChange, onScienceChange) {
       }
     }
 
-    // 2. Krajalnica (Cutter)
+    // 2. Krajalnica (Cutter): Prawa połówka na wprost, lewa połówka w lewy bok
     if (b.type === 'cutter' && b.storedShape) {
       const fwd = DIRS[b.rot];
       const left = DIRS[(b.rot + 3) % 4];
-      const outLeftX = b.x + fwd.x + left.x;
-      const outLeftY = b.y + fwd.y + left.y;
+
       const outRightX = b.x + fwd.x;
       const outRightY = b.y + fwd.y;
+      const outLeftX = b.x + left.x;
+      const outLeftY = b.y + left.y;
 
-      const leftCell = state.grid.get(`${outLeftX},${outLeftY}`);
       const rightCell = state.grid.get(`${outRightX},${outRightY}`);
-      const leftBlocked = state.beltItems.some(i => i.curX === outLeftX && i.curY === outLeftY);
-      const rightBlocked = state.beltItems.some(i => i.curX === outRightX && i.curY === outRightY);
+      const leftCell = state.grid.get(`${outLeftX},${outLeftY}`);
 
-      if (leftCell && rightCell && !leftBlocked && !rightBlocked) {
-        const src = b.storedShape;
-        state.beltItems.push({ curX: outLeftX, curY: outLeftY, isDye: false, shape: [null, null, src[2], src[3]], progress: 0 });
-        state.beltItems.push({ curX: outRightX, curY: outRightY, isDye: false, shape: [src[0], src[1], null, null], progress: 0 });
+      const rightBlocked = state.beltItems.some(i => i.curX === outRightX && i.curY === outRightY);
+      const leftBlocked = state.beltItems.some(i => i.curX === outLeftX && i.curY === outLeftY);
+
+      const src = b.storedShape;
+      const halfRight = [src[0], src[1], null, null];
+      const halfLeft = [null, null, src[2], src[3]];
+
+      // Jeśli oba wyjścia są podpięte, wypluj obie połówki; jeśli tylko jedno, wypluj dostępną
+      if (rightCell && leftCell && !rightBlocked && !leftBlocked) {
+        state.beltItems.push({ curX: outRightX, curY: outRightY, isDye: false, shape: halfRight, progress: 0 });
+        state.beltItems.push({ curX: outLeftX, curY: outLeftY, isDye: false, shape: halfLeft, progress: 0 });
+        b.storedShape = null;
+      } else if (rightCell && !leftCell && !rightBlocked) {
+        state.beltItems.push({ curX: outRightX, curY: outRightY, isDye: false, shape: halfRight, progress: 0 });
+        b.storedShape = null;
+      } else if (leftCell && !rightCell && !leftBlocked) {
+        state.beltItems.push({ curX: outLeftX, curY: outLeftY, isDye: false, shape: halfLeft, progress: 0 });
         b.storedShape = null;
       }
     }
@@ -141,8 +155,7 @@ export function runSimulationTick(onLevelChange, onScienceChange) {
       if (target && !occ) {
         const d1 = b.storedDyes[0];
         const d2 = b.storedDyes[1];
-        const comboKey = `${d1}+${d2}`;
-        const newColor = COLOR_MIXES[comboKey] || d1;
+        const newColor = COLOR_MIXES[`${d1}+${d2}`] || d1;
 
         state.beltItems.push({ curX: tx, curY: ty, isDye: true, dyeColor: newColor, progress: 0 });
         b.storedDyes = [];
@@ -178,27 +191,33 @@ export function runSimulationTick(onLevelChange, onScienceChange) {
     }
   });
 
-  // Hub: dostawy
+  // Hub: odbiór przedmiotów
+  let changed = false;
   for (let i = state.beltItems.length - 1; i >= 0; i--) {
     const item = state.beltItems[i];
     const cell = state.grid.get(`${item.curX},${item.curY}`);
 
     if (cell && cell.type === 'hub') {
       state.sciencePoints += 1;
-      onScienceChange();
+      changed = true;
 
       if (!item.isDye) {
         const curLevel = LEVELS[state.currentLvlIndex];
         if (curLevel && shapesEqual(item.shape, curLevel.targetShape)) {
           state.currentLvlProgress++;
           if (state.currentLvlProgress >= curLevel.requiredCount) {
-            state.currentLvlIndex++;
-            state.currentLvlProgress = 0;
-            onLevelChange();
+            if (state.currentLvlIndex < LEVELS.length - 1) {
+              state.currentLvlIndex++;
+              state.currentLvlProgress = 0;
+            }
           }
         }
       }
       state.beltItems.splice(i, 1);
     }
   }
-}
+
+  if (changed && onUIUpdate) {
+    onUIUpdate();
+  }
+};
