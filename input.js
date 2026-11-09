@@ -2,6 +2,13 @@ window.Factory = window.Factory || {};
 
 window.Factory.setupInput = function(canvas, onToolSelect) {
   const { state, GRID_SIZE } = window.Factory;
+
+  // Zabezpieczenie przed brakiem kolekcji w state (eliminuje błąd reading 'has' of undefined)
+  state.rocks = state.rocks || new Set();
+  state.grid = state.grid || new Map();
+  state.patches = state.patches || new Map();
+  state.beltItems = state.beltItems || [];
+
   let isMouseDown = false;
   let isRightMouseDown = false;
   let lastPos = { x: 0, y: 0 };
@@ -14,6 +21,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
       y: (sy - state.camera.y) / state.camera.zoom
     };
   }
+
   function worldToGrid(wx, wy) {
     return {
       x: Math.floor(wx / GRID_SIZE),
@@ -45,7 +53,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
   function applySingleTool(gx, gy) {
     const key = `${gx},${gy}`;
     if (state.currentTool === 'delete') {
-      if (state.rocks.has(key)) {
+      if (state.rocks && state.rocks.has(key)) {
         if (state.rockDrillUnlocked) {
           state.rocks.delete(key);
         }
@@ -56,7 +64,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
       state.grid.delete(key);
       state.beltItems = state.beltItems.filter(i => i.curX !== gx || i.curY !== gy);
     } else {
-      if (state.rocks.has(key)) return;
+      if (state.rocks && state.rocks.has(key)) return;
       const existing = state.grid.get(key);
       if (existing && existing.type === 'hub') return;
       state.grid.set(key, {
@@ -121,7 +129,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
         const path = calculateBeltPath(dragStart, dragEnd);
         path.forEach(node => {
           const key = `${node.x},${node.y}`;
-          if (state.rocks.has(key)) return;
+          if (state.rocks && state.rocks.has(key)) return;
           const existing = state.grid.get(key);
           if (!existing || existing.type !== 'hub') {
             state.grid.set(key, { type: 'belt', x: node.x, y: node.y, rot: node.rot });

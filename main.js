@@ -1,12 +1,36 @@
 (function() {
   const {
     GRID_SIZE, DIRS, LEVELS, COLOR_MAP, TOOL_HINTS, POWER_RADIUS,
-    state, initInitialWorld, rebuildHub,
-    saveGame, loadGame, clearGameSave,
-    runSimulationTick, isFullShapeOfType,
-    drawShape, drawDyeDrop, drawRock, drawBuilding,
-    setupInput
+    state, initInitialWorld, saveGame, loadGame, clearGameSave,
+    runSimulationTick, isFullShapeOfType, drawShape, drawDyeDrop, drawRock, drawBuilding, setupInput
   } = window.Factory;
+
+  // Zabezpieczenie kolekcji i właściwości stanu przed błędem "reading 'has' of undefined"
+  state.rocks = state.rocks || new Set();
+  state.patches = state.patches || new Map();
+  state.grid = state.grid || new Map();
+  state.beltItems = state.beltItems || [];
+  state.hubSize = state.hubSize || 2;
+  state.rockDrillUnlocked = Boolean(state.rockDrillUnlocked);
+
+  // Fallback dla rebuildHub, jeśli starszy world.js byłby w cache
+  const rebuildHub = window.Factory.rebuildHub || function() {
+    const size = state.hubSize || 2;
+    for (const [k, cell] of state.grid.entries()) {
+      if (cell.type === 'hub') state.grid.delete(k);
+    }
+    const startOffset = -Math.floor((size - 2) / 2);
+    const endOffset = startOffset + size - 1;
+    for (let x = startOffset; x <= endOffset; x++) {
+      for (let y = startOffset; y <= endOffset; y++) {
+        const key = `${x},${y}`;
+        state.rocks.delete(key);
+        state.patches.delete(key);
+        state.grid.set(key, { type: 'hub', x, y, rot: 0 });
+      }
+    }
+  };
+  window.Factory.rebuildHub = rebuildHub;
 
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
@@ -56,17 +80,26 @@
   if (!loadGame()) {
     initInitialWorld();
   }
+  // Upewnij się, że Hub zawsze stoi na mapie po starcie
+  rebuildHub();
 
-  helpBtn.addEventListener('click', () => { tutorialModal.style.display = 'flex'; });
-  closeHelpBtn.addEventListener('click', () => { tutorialModal.style.display = 'none'; });
+  if (helpBtn && tutorialModal) {
+    helpBtn.addEventListener('click', () => { tutorialModal.style.display = 'flex'; });
+  }
+  if (closeHelpBtn && tutorialModal) {
+    closeHelpBtn.addEventListener('click', () => { tutorialModal.style.display = 'none'; });
+  }
 
-  newMapBtn.addEventListener('click', () => {
-    if (confirm("Wygenerować nową proceduralną mapę? Obecne budynki zostaną usunięte (poziom i badania zostaną zachowane).")) {
-      initInitialWorld(Math.floor(Math.random() * 1000000));
-      saveGame();
-      updateUI();
-    }
-  });
+  if (newMapBtn) {
+    newMapBtn.addEventListener('click', () => {
+      if (confirm("Wygenerować nową proceduralną mapę? Obecne budynki zostaną usunięte (poziom i badania zostaną zachowane).")) {
+        initInitialWorld(Math.floor(Math.random() * 1000000));
+        rebuildHub();
+        saveGame();
+        updateUI();
+      }
+    });
+  }
 
   function canEnterMachine(nextCell, item) {
     if (!nextCell) return false;
@@ -150,7 +183,7 @@
       upgHubBtn.disabled = true;
     } else {
       const hCost = state.hubSize === 2 ? 50 : 120;
-      hubLvlText.innerText = `(${state.hubSize}x${state.hubSize} -> ${state.hubSize+1}x${state.hubSize+1})`;
+      hubLvlText.innerText = `(${state.hubSize}x${state.hubSize} -> ${state.hubSize + 1}x${state.hubSize + 1})`;
       hubCostText.innerText = `${hCost} ⚙`;
       upgHubBtn.disabled = state.sciencePoints < hCost;
     }
@@ -308,7 +341,7 @@
         }
         if (cell.type === 'generator' && !item.isDye) {
           if (isFullShapeOfType(item.shape, 'star')) {
-            cell.fuelTimer = 150; // 15 sekund (150 ticków po 100ms)
+            cell.fuelTimer = 150;
             state.beltItems.splice(i, 1);
             continue;
           }
@@ -403,10 +436,12 @@
     ctx.stroke();
 
     // 3. Skały
-    for (let x = startCol; x <= endCol; x++) {
-      for (let y = startRow; y <= endRow; y++) {
-        if (state.rocks.has(`${x},${y}`)) {
-          drawRock(ctx, x, y);
+    if (state.rocks) {
+      for (let x = startCol; x <= endCol; x++) {
+        for (let y = startRow; y <= endRow; y++) {
+          if (state.rocks.has(`${x},${y}`)) {
+            drawRock(ctx, x, y);
+          }
         }
       }
     }
@@ -441,8 +476,8 @@
             ctx.lineWidth = 2.5;
             ctx.setLineDash([4, 4]);
             ctx.beginPath();
-            ctx.moveTo(b.x * GRID_SIZE + GRID_SIZE/2, b.y * GRID_SIZE + GRID_SIZE/2);
-            ctx.lineTo(tx * GRID_SIZE + GRID_SIZE/2, ty * GRID_SIZE + GRID_SIZE/2);
+            ctx.moveTo(b.x * GRID_SIZE + GRID_SIZE / 2, b.y * GRID_SIZE + GRID_SIZE / 2);
+            ctx.lineTo(tx * GRID_SIZE + GRID_SIZE / 2, ty * GRID_SIZE + GRID_SIZE / 2);
             ctx.stroke();
             ctx.setLineDash([]);
             break;
