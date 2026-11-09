@@ -29,7 +29,7 @@ window.Factory.isFullShapeOfType = function(shape, type) {
   return shape.every(q => q && q.type === type);
 };
 
-window.Factory.runSimulationTick = function(onUIUpdate) {
+window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
   const { state, DIRS, LEVELS, COLOR_MIXES, POWER_RADIUS, makeQuad } = window.Factory;
 
   // KROK 0: Aktualizacja Generatorów Prądu i sieci zasilania
@@ -94,38 +94,46 @@ window.Factory.runSimulationTick = function(onUIUpdate) {
       }
     }
 
-    // 2. Przecinarka (Cutter)
+    // 2. Przecinarka 2x1 (Cutter) - zajmuje 2 pola i wypluwa połówki równolegle na 2 taśmociągi z przodu
     if (b.type === 'cutter' && b.storedShape) {
       const fwd = DIRS[b.rot];
-      const left = DIRS[(b.rot + 3) % 4];
+      const right = DIRS[(b.rot + 1) % 4];
 
-      const outRightX = b.x + fwd.x;
-      const outRightY = b.y + fwd.y;
-      const outLeftX = b.x + left.x;
-      const outLeftY = b.y + left.y;
+      // Drugie pole przecinarki (po prawej stronie względem obrotu)
+      const secX = b.x + right.x;
+      const secY = b.y + right.y;
 
-      const rightCell = state.grid.get(`${outRightX},${outRightY}`);
-      const leftCell = state.grid.get(`${outLeftX},${outLeftY}`);
+      // Wyjście 1 (z pola głównego na wprost -> Lewa połówka)
+      const outMainX = b.x + fwd.x;
+      const outMainY = b.y + fwd.y;
 
-      const rightBlocked = state.beltItems.some(i => i.curX === outRightX && i.curY === outRightY);
-      const leftBlocked = state.beltItems.some(i => i.curX === outLeftX && i.curY === outLeftY);
+      // Wyjście 2 (z drugiego pola przecinarki na wprost -> Prawa połówka)
+      const outSecX = secX + fwd.x;
+      const outSecY = secY + fwd.y;
+
+      const mainTarget = state.grid.get(`${outMainX},${outMainY}`);
+      const secTarget = state.grid.get(`${outSecX},${outSecY}`);
+
+      const mainBlocked = state.beltItems.some(i => i.curX === outMainX && i.curY === outMainY);
+      const secBlocked = state.beltItems.some(i => i.curX === outSecX && i.curY === outSecY);
 
       const src = b.storedShape;
-      const halfRight = [src[0], src[1], null, null];
       const halfLeft = [null, null, src[2], src[3]];
+      const halfRight = [src[0], src[1], null, null];
 
-      const canRight = halfRight[0] || halfRight[1];
-      const canLeft = halfLeft[2] || halfLeft[3];
+      const hasLeft = Boolean(halfLeft[2] || halfLeft[3]);
+      const hasRight = Boolean(halfRight[0] || halfRight[1]);
 
-      if (rightCell && leftCell && !rightBlocked && !leftBlocked) {
-        if (canRight) state.beltItems.push({ curX: outRightX, curY: outRightY, isDye: false, shape: halfRight, progress: 0 });
-        if (canLeft) state.beltItems.push({ curX: outLeftX, curY: outLeftY, isDye: false, shape: halfLeft, progress: 0 });
+      // Jeśli oba taśmociągi wyjściowe są podłączone, czekamy aż oba będą wolne
+      if (mainTarget && secTarget && !mainBlocked && !secBlocked) {
+        if (hasLeft) state.beltItems.push({ curX: outMainX, curY: outMainY, isDye: false, shape: halfLeft, progress: 0 });
+        if (hasRight) state.beltItems.push({ curX: outSecX, curY: outSecY, isDye: false, shape: halfRight, progress: 0 });
         b.storedShape = null;
-      } else if (rightCell && !leftCell && !rightBlocked) {
-        if (canRight) state.beltItems.push({ curX: outRightX, curY: outRightY, isDye: false, shape: halfRight, progress: 0 });
+      } else if (mainTarget && !secTarget && !mainBlocked) {
+        if (hasLeft) state.beltItems.push({ curX: outMainX, curY: outMainY, isDye: false, shape: halfLeft, progress: 0 });
         b.storedShape = null;
-      } else if (leftCell && !rightCell && !leftBlocked) {
-        if (canLeft) state.beltItems.push({ curX: outLeftX, curY: outLeftY, isDye: false, shape: halfLeft, progress: 0 });
+      } else if (secTarget && !mainTarget && !secBlocked) {
+        if (hasRight) state.beltItems.push({ curX: outSecX, curY: outSecY, isDye: false, shape: halfRight, progress: 0 });
         b.storedShape = null;
       }
     }
@@ -148,13 +156,13 @@ window.Factory.runSimulationTick = function(onUIUpdate) {
     if (b.type === 'merger' && b.storedInputs && b.storedInputs.length >= 2) {
       const fwd = DIRS[b.rot];
       const tx = b.x + fwd.x;
-      const ty = b.y + dirY(b.rot);
-      const target = state.grid.get(`${tx},${ b.y + fwd.y }`);
-      const occ = state.beltItems.some(i => i.curX === tx && i.curY === (b.y + fwd.y));
+      const ty = b.y + fwd.y;
+      const target = state.grid.get(`${tx},${ty}`);
+      const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
 
       if (target && !occ) {
         const merged = combineShapes(b.storedInputs[0], b.storedInputs[1]);
-        state.beltItems.push({ curX: tx, curY: b.y + fwd.y, isDye: false, shape: merged, progress: 0 });
+        state.beltItems.push({ curX: tx, curY: ty, isDye: false, shape: merged, progress: 0 });
         b.storedInputs = [];
       }
     }
@@ -295,9 +303,11 @@ window.Factory.runSimulationTick = function(onUIUpdate) {
         if (curLevel && shapesEqual(item.shape, curLevel.targetShape)) {
           state.currentLvlProgress++;
           if (state.currentLvlProgress >= curLevel.requiredCount) {
+            const finishedLevel = curLevel;
             if (state.currentLvlIndex < LEVELS.length - 1) {
               state.currentLvlIndex++;
               state.currentLvlProgress = 0;
+              if (onLevelUp) onLevelUp(finishedLevel, LEVELS[state.currentLvlIndex]);
             }
           }
         }

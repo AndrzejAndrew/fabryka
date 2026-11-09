@@ -6,9 +6,9 @@ const LEGACY_SAVE_KEY = 'schematic_factory_save_v3';
 window.Factory.saveGame = function() {
   const { state } = window.Factory;
   try {
-    // Zapisujemy budynki poza samym Hubem (Hub jest odtwarzany przez rebuildHub na podstawie hubSize)
+    // Zapisujemy główne budynki (pomijamy hub oraz pomocniczy kafelek cutter_sec, który odtworzymy przy wczytywaniu)
     const serializedGrid = Array.from(state.grid.entries())
-      .filter(([, b]) => b.type !== 'hub')
+      .filter(([, b]) => b.type !== 'hub' && b.type !== 'cutter_sec')
       .map(([key, b]) => ({
         key,
         type: b.type,
@@ -18,14 +18,12 @@ window.Factory.saveGame = function() {
         fuelTimer: b.fuelTimer || 0
       }));
 
-    // Zapisujemy wygenerowane złoża
     const serializedPatches = Array.from(state.patches.entries()).map(([key, p]) => ({
       key,
       kind: p.kind,
       subType: p.subType
     }));
 
-    // Zapisujemy skały (jako tablicę kluczy "x,y")
     const serializedRocks = Array.from(state.rocks.values());
 
     state.lastSaveTime = Date.now();
@@ -53,12 +51,11 @@ window.Factory.saveGame = function() {
 };
 
 window.Factory.loadGame = function() {
-  const { state, LEVELS, initInitialWorld, rebuildHub } = window.Factory;
+  const { state, LEVELS, DIRS, initInitialWorld, rebuildHub } = window.Factory;
   try {
     let raw = localStorage.getItem(SAVE_KEY);
     let isLegacy = false;
 
-    // Wsteczna kompatybilność z zapisem v3
     if (!raw) {
       raw = localStorage.getItem(LEGACY_SAVE_KEY);
       isLegacy = true;
@@ -82,7 +79,6 @@ window.Factory.loadGame = function() {
     state.mapSeed = Number(data.mapSeed) || 123456;
     state.lastSaveTime = Number(data.lastSaveTime) || Date.now();
 
-    // Jeśli wczytujemy stary zapis v3 (bez zapisanych złóż i skał), najpierw wygeneruj świat bazowy
     if (isLegacy || !Array.isArray(data.patches) || data.patches.length === 0) {
       initInitialWorld(state.mapSeed);
     } else {
@@ -97,32 +93,58 @@ window.Factory.loadGame = function() {
       }
     }
 
-    // Wczytaj budynki gracza
     state.grid.clear();
     state.beltItems = [];
 
     if (Array.isArray(data.grid)) {
       data.grid.forEach(b => {
-        if (b.type === 'hub') return; // Hub odtworzymy za chwilę przez rebuildHub()
-        state.rocks.delete(b.key);    // Upewnij się, że pod budynkiem ze starego zapisu nie ma skały
-        state.grid.set(b.key, {
-          type: b.type,
-          x: b.x,
-          y: b.y,
-          rot: b.rot || 0,
-          timer: 0,
-          fuelTimer: Number(b.fuelTimer) || 0,
-          storedShape: null,
-          storedDye: null,
-          storedInputs: [],
-          storedDyes: []
-        });
+        if (b.type === 'hub' || b.type === 'cutter_sec') return;
+        state.rocks.delete(b.key);
+
+        if (b.type === 'cutter') {
+          const rot = b.rot || 0;
+          const right = DIRS[(rot + 1) % 4];
+          const secX = b.x + right.x;
+          const secY = b.y + right.y;
+          const secKey = `${secX},${secY}`;
+          state.rocks.delete(secKey);
+
+          state.grid.set(b.key, {
+            type: 'cutter',
+            x: b.x,
+            y: b.y,
+            rot,
+            partnerKey: secKey,
+            timer: 0,
+            storedShape: null
+          });
+          state.grid.set(secKey, {
+            type: 'cutter_sec',
+            x: secX,
+            y: secY,
+            rot,
+            partnerKey: b.key,
+            mainX: b.x,
+            mainY: b.y
+          });
+        } else {
+          state.grid.set(b.key, {
+            type: b.type,
+            x: b.x,
+            y: b.y,
+            rot: b.rot || 0,
+            timer: 0,
+            fuelTimer: Number(b.fuelTimer) || 0,
+            storedShape: null,
+            storedDye: null,
+            storedInputs: [],
+            storedDyes: []
+          });
+        }
       });
     }
 
-    // Odtwórz Hub o właściwym rozmiarze (2x2, 3x3 lub 4x4)
     rebuildHub();
-
     return true;
   } catch (err) {
     console.warn("Błąd wczytywania zapisu, start od nowa:", err);

@@ -1,9 +1,19 @@
 window.Factory = window.Factory || {};
 
-window.Factory.setupInput = function(canvas, onToolSelect) {
-  const { state, GRID_SIZE } = window.Factory;
+// Pomocnik zwracający drugi kafelek dla budynków 2-polowych (Przecinarka 2x1 rozszerza się w prawo względem obrotu)
+window.Factory.getSecondaryTile = function(type, gx, gy, rot) {
+  if (type !== 'cutter') return null;
+  const { DIRS } = window.Factory;
+  const rightDir = DIRS[(rot + 1) % 4];
+  return {
+    x: gx + rightDir.x,
+    y: gy + rightDir.y
+  };
+};
 
-  // Zabezpieczenie przed brakiem kolekcji w state (eliminuje błąd reading 'has' of undefined)
+window.Factory.setupInput = function(canvas, onToolSelect) {
+  const { state, GRID_SIZE, getSecondaryTile } = window.Factory;
+
   state.rocks = state.rocks || new Set();
   state.grid = state.grid || new Map();
   state.patches = state.patches || new Map();
@@ -12,10 +22,19 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
   let isMouseDown = false;
   let isRightMouseDown = false;
   let lastPos = { x: 0, y: 0 };
+  let hoverGrid = null;
   let dragStart = null;
   let dragEnd = null;
 
-  function screenToWorld(sx, sy) {
+  // NAPRAWA SIATKI: Odejmujemy pozycję canvasu (rect.left, rect.top) oraz uwzględniamy skalowanie CSS
+  function screenToWorld(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / (rect.width || canvas.width);
+    const scaleY = canvas.height / (rect.height || canvas.height);
+
+    const sx = (clientX - rect.left) * scaleX;
+    const sy = (clientY - rect.top) * scaleY;
+
     return {
       x: (sx - state.camera.x) / state.camera.zoom,
       y: (sy - state.camera.y) / state.camera.zoom
@@ -50,8 +69,25 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
     return path;
   }
 
+  // Bezpieczne usuwanie budynku (usuwa także powiązaną drugą połówkę budynku 2x1)
+  function removeBuildingAt(gx, gy) {
+    const key = `${gx},${gy}`;
+    const existing = state.grid.get(key);
+    if (!existing || existing.type === 'hub') return;
+
+    if (existing.partnerKey) {
+      const [px, py] = existing.partnerKey.split(',').map(Number);
+      state.grid.delete(existing.partnerKey);
+      state.beltItems = state.beltItems.filter(i => i.curX !== px || i.curY !== py);
+    }
+
+    state.grid.delete(key);
+    state.beltItems = state.beltItems.filter(i => i.curX !== gx || i.curY !== gy);
+  }
+
   function applySingleTool(gx, gy) {
     const key = `${gx},${gy}`;
+
     if (state.currentTool === 'delete') {
       if (state.rocks && state.rocks.has(key)) {
         if (state.rockDrillUnlocked) {
@@ -59,27 +95,63 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
         }
         return;
       }
-      const existing = state.grid.get(key);
-      if (existing && existing.type === 'hub') return;
-      state.grid.delete(key);
-      state.beltItems = state.beltItems.filter(i => i.curX !== gx || i.curY !== gy);
-    } else {
-      if (state.rocks && state.rocks.has(key)) return;
-      const existing = state.grid.get(key);
-      if (existing && existing.type === 'hub') return;
+      removeBuildingAt(gx, gy);
+      return;
+    }
+
+    // Sprawdzenie pierwszego pola
+    if (state.rocks && state.rocks.has(key)) return;
+    const existing = state.grid.get(key);
+    if (existing && existing.type === 'hub') return;
+
+    // Obsługa Przecinarki 2x1 (zajmuje 2 pola)
+    const secTile = getSecondaryTile(state.currentTool, gx, gy, state.currentRotation);
+    if (secTile) {
+      const secKey = `${secTile.x},${secTile.y}`;
+      if (state.rocks && state.rocks.has(secKey)) return;
+      const existingSec = state.grid.get(secKey);
+      if (existingSec && existingSec.type === 'hub') return;
+
+      // Wyczyść ewentualne stare budynki na obu polach przed postawieniem Przecinarki 2x1
+      removeBuildingAt(gx, gy);
+      removeBuildingAt(secTile.x, secTile.y);
+
       state.grid.set(key, {
-        type: state.currentTool,
+        type: 'cutter',
         x: gx,
         y: gy,
         rot: state.currentRotation,
+        partnerKey: secKey,
         timer: 0,
-        fuelTimer: 0,
-        storedShape: null,
-        storedDye: null,
-        storedInputs: [],
-        storedDyes: []
+        storedShape: null
       });
+
+      state.grid.set(secKey, {
+        type: 'cutter_sec',
+        x: secTile.x,
+        y: secTile.y,
+        rot: state.currentRotation,
+        partnerKey: key,
+        mainX: gx,
+        mainY: gy
+      });
+      return;
     }
+
+    // Standardowy budynek 1x1
+    removeBuildingAt(gx, gy);
+    state.grid.set(key, {
+      type: state.currentTool,
+      x: gx,
+      y: gy,
+      rot: state.currentRotation,
+      timer: 0,
+      fuelTimer: 0,
+      storedShape: null,
+      storedDye: null,
+      storedInputs: [],
+      storedDyes: []
+    });
   }
 
   window.addEventListener('contextmenu', e => e.preventDefault());
@@ -88,6 +160,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
     lastPos = { x: e.clientX, y: e.clientY };
     const w = screenToWorld(e.clientX, e.clientY);
     const g = worldToGrid(w.x, w.y);
+    hoverGrid = g;
 
     if (e.button === 0) {
       isMouseDown = true;
@@ -115,6 +188,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
 
     const w = screenToWorld(e.clientX, e.clientY);
     const g = worldToGrid(w.x, w.y);
+    hoverGrid = g;
 
     if (isMouseDown) {
       if (state.currentTool === 'belt') dragEnd = g;
@@ -132,6 +206,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
           if (state.rocks && state.rocks.has(key)) return;
           const existing = state.grid.get(key);
           if (!existing || existing.type !== 'hub') {
+            removeBuildingAt(node.x, node.y);
             state.grid.set(key, { type: 'belt', x: node.x, y: node.y, rot: node.rot });
           }
         });
@@ -147,8 +222,13 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
     const factor = e.deltaY < 0 ? 1.15 : 0.87;
     const mouseW = screenToWorld(e.clientX, e.clientY);
     const newZoom = Math.max(0.25, Math.min(2.8, state.camera.zoom * factor));
-    state.camera.x = e.clientX - mouseW.x * newZoom;
-    state.camera.y = e.clientY - mouseW.y * newZoom;
+
+    const rect = canvas.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) * (canvas.width / (rect.width || canvas.width));
+    const sy = (e.clientY - rect.top) * (canvas.height / (rect.height || canvas.height));
+
+    state.camera.x = sx - mouseW.x * newZoom;
+    state.camera.y = sy - mouseW.y * newZoom;
     state.camera.zoom = newZoom;
   }, { passive: false });
 
@@ -173,6 +253,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
   return {
     getDragPreview: () => (isMouseDown && state.currentTool === 'belt' && dragStart && dragEnd)
       ? calculateBeltPath(dragStart, dragEnd)
-      : null
+      : null,
+    getHoverTile: () => hoverGrid
   };
 };
