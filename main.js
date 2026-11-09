@@ -12,6 +12,27 @@
   state.hubSize = state.hubSize || 2;
   state.rockDrillUnlocked = Boolean(state.rockDrillUnlocked);
 
+  // Dodajemy Materię (surowiec budowlany) i statystyki do kalkulacji Offline/Idle
+  state.matter = state.matter || 200; // Startowe 200 materii
+  state.matterPerMinute = state.matterPerMinute || 0;
+  state.sciencePerMinute = state.sciencePerMinute || 0;
+  
+  // Słownik kosztów (w Materii) dla każdego budynku
+  const BUILDING_COSTS = {
+    belt: 1,
+    miner: 15,
+    cutter: 30,
+    rotator: 20,
+    merger: 40,
+    painter: 50,
+    mixer: 60,
+    synthesizer: 100,
+    generator: 150,
+    splitter: 10,
+    tunnel_in: 25,
+    tunnel_out: 25
+  };
+
   const rebuildHub = window.Factory.rebuildHub || function() {
     const size = state.hubSize || 2;
     for (const [k, cell] of state.grid.entries()) {
@@ -35,11 +56,17 @@
   const goalCanvas = document.getElementById('goalCanvas');
   const goalCtx = goalCanvas.getContext('2d');
 
-  // NAPRAWA INTERFEJSU: Płótno z grą ląduje POD interfejsem (z-index: -1)
+  // NAPRAWA MAPY I SIATKI: Canvas pozostaje w tle naturalnie (bez z-index: -1).
+  // Aby interfejs nie przepychał płótna, ustawiamy ui i toolbary na wyższy z-index.
   canvas.style.position = 'fixed';
   canvas.style.top = '0';
   canvas.style.left = '0';
-  canvas.style.zIndex = '-1'; 
+
+  const uiContainer = document.getElementById('ui');
+  if (uiContainer) uiContainer.style.zIndex = '10';
+  
+  const toolbarContainer = document.getElementById('toolbar');
+  if (toolbarContainer) toolbarContainer.style.zIndex = '10';
 
   const levelBadge = document.getElementById('levelBadge');
   const goalTitle = document.getElementById('goalTitle');
@@ -47,6 +74,18 @@
   const goalProgressText = document.getElementById('goalProgressText');
   const scienceDisplay = document.getElementById('scienceDisplay');
   const contextHint = document.getElementById('contextHint');
+
+  // Tworzymy wyświetlacz Materii nad punktami nauki
+  if (scienceDisplay && !document.getElementById('matterDisplay')) {
+    const matterDiv = document.createElement('div');
+    matterDiv.id = 'matterDisplay';
+    matterDiv.className = 'science-score';
+    matterDiv.style.color = '#3fb950';
+    matterDiv.style.marginBottom = '2px';
+    matterDiv.innerHTML = `200 🧱 Materii`;
+    scienceDisplay.parentNode.insertBefore(matterDiv, scienceDisplay);
+  }
+  const matterDisplay = document.getElementById('matterDisplay');
 
   const resetSaveBtn = document.getElementById('resetSaveBtn');
   const newMapBtn = document.getElementById('newMapBtn');
@@ -78,132 +117,59 @@
 
   const toolButtons = document.querySelectorAll('.tool-btn');
 
-  // --- SYSTEM SAMOUCZKA KROK PO KROKU I OKIENEK ODBLOKOWAŃ ---
-  const UNLOCK_GUIDES = {
-    cutter: {
-      title: "✂️ Odblokowano: Przecinarka (2x1) oraz Rozdzielacz!",
-      body: `
-        <p style="margin-bottom:8px;"><b>Przecinarka zajmuje 2 sąsiednie pola!</b> Możesz ją obracać klawiszem <kbd>R</kbd>.</p>
-        <ul style="margin-left:18px; line-height:1.6; color:#c9d1d9;">
-          <li>Doprowadź kształt do <b>głównego pola (ze strzałką wlotową)</b>.</li>
-          <li>Maszyna rozcina kształt na pół i wyrzuca <b>dwie połówki równolegle do przodu</b>:
-            <br>🔴 <b>Z pierwszego pola:</b> wychodzi Lewa połówka.
-            <br>🔵 <b>Z drugiego pola obok:</b> wychodzi Prawa połówka.</li>
-          <li><b>Rozdzielacz [0]:</b> rozdziela dowolny strumień naprzemiennie 50/50 (prosto i w prawo).</li>
-        </ul>`
-    },
-    rotator: {
-      title: "🔄 Odblokowano: Rotator!",
-      body: `
-        <p style="margin-bottom:8px;">W Poziomie 3 potrzebujesz <b>Górnych połówek kwadratów</b>, a Przecinarka tnie tylko pionowo.</p>
-        <ul style="margin-left:18px; line-height:1.6; color:#c9d1d9;">
-          <li>Postaw <b>Przecinarkę [3]</b>, aby uzyskać pionową połówkę kwadratu.</li>
-          <li>Skieruj taśmociąg z połówką do <b>Rotatora [4]</b> – obróci on połówkę o 90° w prawo, zamieniając ją w poziomą (górną)!</li>
-        </ul>`
-    },
-    merger: {
-      title: "🧩 Odblokowano: Monter!",
-      body: `
-        <p style="margin-bottom:8px;"><b>Monter [5]</b> pozwala łączyć dwa różne fragmenty w jeden złożony kształt (Hybrydę).</p>
-        <ul style="margin-left:18px; line-height:1.6; color:#c9d1d9;">
-          <li>Doprowadź do Montera <b>Prawą połówkę kwadratu</b> (jednym taśmociągiem) oraz <b>Lewą połówkę koła</b> (drugim taśmociągiem).</li>
-          <li>Monter sklei je i wypuści gotową Hybrydę przodem!</li>
-        </ul>`
-    },
-    synthesizer: {
-      title: "⚗️ Odblokowano: Syntezator Gwiazd!",
-      body: `
-        <p style="margin-bottom:8px;"><b>Syntezator [8]</b> tworzy surowiec wyższego rzędu – <b>Gwiazdę ⭐</b>.</p>
-        <ul style="margin-left:18px; line-height:1.6; color:#c9d1d9;">
-          <li>Doprowadź do Syntezatora <b>1x Pełne Koło</b> oraz <b>1x Pełny Kwadrat</b>.</li>
-          <li>Każda dostarczona do Bazy Gwiazda daje aż <b>5 ⚙ punktów nauki</b>!</li>
-        </ul>`
-    },
-    painter: {
-      title: "🎨 Odblokowano: Lakiernię oraz Generator Prądu ⚡!",
-      body: `
-        <p style="margin-bottom:8px;">Twoja fabryka wchodzi w erę kolorów i elektryfikacji!</p>
-        <ul style="margin-left:18px; line-height:1.6; color:#c9d1d9;">
-          <li><b>Lakiernia [6]:</b> Doprowadź do Lakierni kształt oraz kroplę barwnika ze złoża, aby pomalować element!</li>
-          <li><b>Generator Prądu [9]:</b> Podaj mu <b>Gwiazdę ⭐</b>. Wytworzy pole (promień 5 kratek), w którym <b>Ekstraktory wydobywają 2x szybciej</b>!</li>
-        </ul>`
-    },
-    mixer: {
-      title: "🧪 Odblokowano: Mieszalnik Barw oraz Tunele Podziemne!",
-      body: `
-        <ul style="margin-left:18px; line-height:1.6; color:#c9d1d9;">
-          <li><b>Mieszalnik [7]:</b> Doprowadź 2 różne barwniki podstawowe (np. Czerwony + Zielony = <b>Żółty</b>).</li>
-          <li><b>Tunele [Q / E]:</b> Przesyłaj surowce pod ziemią (do 5 kratek) pod innymi taśmociągami!</li>
-        </ul>`
-    }
-  };
-
-  const stepBanner = document.createElement('div');
-  stepBanner.style.cssText = `
-    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
-    background: rgba(22, 27, 34, 0.96); border: 2px solid #58a6ff; border-radius: 10px;
-    padding: 10px 18px; color: #f0f6fc; font-size: 13px; max-width: 540px;
-    box-shadow: 0 10px 28px rgba(0,0,0,0.65); z-index: 25; pointer-events: auto;
-    display: none; line-height: 1.45;
+  // --- OKNO PRODUKCJI OFFLINE (IDLE) ---
+  const offlinePopup = document.createElement('div');
+  offlinePopup.style.cssText = `
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    display: none; align-items: center; justify-content: center; z-index: 100;
   `;
-  document.body.appendChild(stepBanner);
-
-  const unlockPopup = document.createElement('div');
-  unlockPopup.style.cssText = `
-    position: fixed; inset: 0; background: rgba(0,0,0,0.72);
-    display: none; align-items: center; justify-content: center; z-index: 50;
-  `;
-  unlockPopup.innerHTML = `
-    <div style="background:#161b22; border:2px solid #58a6ff; border-radius:12px; padding:22px 26px; max-width:480px; width:90%; box-shadow:0 16px 40px rgba(0,0,0,0.8); color:#f0f6fc;">
-      <h3 id="unlockPopupTitle" style="color:#58a6ff; margin-bottom:12px; font-size:17px;"></h3>
-      <div id="unlockPopupBody" style="font-size:13px; margin-bottom:18px;"></div>
-      <button id="unlockPopupClose" style="background:#238636; border:1px solid #3fb950; color:#fff; font-weight:700; padding:8px 18px; border-radius:6px; cursor:pointer; width:100%;">Zrozumiano! Kontynuuj budowę</button>
+  offlinePopup.innerHTML = `
+    <div style="background:#161b22; border:2px solid #3fb950; border-radius:12px; padding:26px; max-width:420px; width:90%; box-shadow:0 16px 40px rgba(0,0,0,0.8); color:#f0f6fc; text-align:center;">
+      <h3 style="color:#3fb950; margin-bottom:12px; font-size:18px;">🌙 Witaj ponownie, Inżynierze!</h3>
+      <p style="font-size:13px; color:#c9d1d9; margin-bottom:20px;">Podczas Twojej nieobecności (<span id="offlineTimeStr">0h</span>) fabryka kontynuowała wydobycie na podstawie Twojej zoptymalizowanej przepustowości.</p>
+      <div style="display:flex; justify-content:space-around; margin-bottom:24px; background:#0d1117; padding:12px; border-radius:8px;">
+        <div>
+          <div style="font-size:11px; color:#8b949e; text-transform:uppercase;">Wydobyto</div>
+          <div style="color:#3fb950; font-weight:bold; font-size:20px;">+<span id="offlineMatterVal">0</span> 🧱</div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:#8b949e; text-transform:uppercase;">Zbadano</div>
+          <div style="color:#a371f7; font-weight:bold; font-size:20px;">+<span id="offlineScienceVal">0</span> ⚙</div>
+        </div>
+      </div>
+      <button id="offlinePopupClose" style="background:#238636; border:1px solid #3fb950; color:#fff; font-weight:700; padding:10px 20px; border-radius:6px; cursor:pointer; width:100%;">Zbierz Zasoby</button>
     </div>
   `;
-  document.body.appendChild(unlockPopup);
-  document.getElementById('unlockPopupClose').addEventListener('click', () => {
-    unlockPopup.style.display = 'none';
+  document.body.appendChild(offlinePopup);
+  document.getElementById('offlinePopupClose').addEventListener('click', () => {
+    offlinePopup.style.display = 'none';
   });
 
-  function showUnlockGuide(toolKey) {
-    const guide = UNLOCK_GUIDES[toolKey];
-    if (!guide) return;
-    document.getElementById('unlockPopupTitle').innerHTML = guide.title;
-    document.getElementById('unlockPopupBody').innerHTML = guide.body;
-    unlockPopup.style.display = 'flex';
-  }
+  // Mechanika Offline / AFK
+  function calculateOfflineProgress() {
+    const now = Date.now();
+    const lastTime = state.lastSaveTime || now;
+    const diffMs = now - lastTime;
+    const diffMinutes = Math.floor(diffMs / 60000);
 
-  function updateInteractiveTutorial() {
-    if (state.currentLvlIndex > 0 || state.currentLvlProgress >= 5) {
-      stepBanner.style.display = 'none';
-      return;
-    }
-    let hasMinerOnCircle = false;
-    let beltCount = 0;
-    state.grid.forEach(b => {
-      if (b.type === 'miner') {
-        const p = state.patches.get(`${b.x},${b.y}`);
-        if (p && p.kind === 'shape' && p.subType === 'circle') hasMinerOnCircle = true;
-      } else if (b.type === 'belt') beltCount++;
-    });
+    // Aktywuj tylko jeśli gracz był offline dłużej niż 3 minuty
+    if (diffMinutes > 3 && (state.matterPerMinute > 0 || state.sciencePerMinute > 0)) {
+      // Maksymalnie 24 godziny produkcji offline w jednej sesji
+      const effectiveMinutes = Math.min(diffMinutes, 24 * 60);
+      
+      const gainedMatter = effectiveMinutes * (state.matterPerMinute || 0);
+      const gainedScience = effectiveMinutes * (state.sciencePerMinute || 0);
 
-    stepBanner.style.display = 'block';
-    if (!hasMinerOnCircle) {
-      stepBanner.innerHTML = `
-        <div style="color:#58a6ff; font-weight:700; font-size:11px; text-transform:uppercase; margin-bottom:3px;">Samouczek — Krok 1 z 3: Pierwsze Wydobycie</div>
-        Wybierz <b>Ekstraktor [klawisz 2]</b> na dolnym pasku, najedź na <b>szare złoże Kół</b> i kliknij LPM, aby postawić kopalnię (klawisz <kbd>R</kbd> obraca wylot).
-      `;
-    } else if (beltCount < 3) {
-      stepBanner.innerHTML = `
-        <div style="color:#3fb950; font-weight:700; font-size:11px; text-transform:uppercase; margin-bottom:3px;">Samouczek — Krok 2 z 3: Szlak Produkcyjny</div>
-        Świetnie! Teraz wybierz <b>Przenośnik [klawisz 1]</b>, kliknij LPM tuż przed wylotem Ekstraktora i <b>przeciągnij taśmociąg</b> aż do fioletowego Rdzenia (2x2)!
-      `;
-    } else {
-      stepBanner.innerHTML = `
-        <div style="color:#a371f7; font-weight:700; font-size:11px; text-transform:uppercase; margin-bottom:3px;">Samouczek — Krok 3 z 3: Automatyzacja</div>
-        Koła jadą do Rdzenia! Dostarcz <b>15 Pełnych Kół</b>, by odblokować dwupolową <b>Przecinarkę (2x1)</b>.
-      `;
+      state.matter += gainedMatter;
+      state.sciencePoints += gainedScience;
+
+      document.getElementById('offlineTimeStr').innerText = `${Math.floor(effectiveMinutes/60)}h ${effectiveMinutes%60}m`;
+      document.getElementById('offlineMatterVal').innerText = gainedMatter;
+      document.getElementById('offlineScienceVal').innerText = gainedScience;
+      
+      offlinePopup.style.display = 'flex';
     }
+    state.lastSaveTime = now;
   }
 
   function resize() {
@@ -218,6 +184,7 @@
 
   if (!loadGame()) initInitialWorld();
   rebuildHub();
+  calculateOfflineProgress();
 
   if (helpBtn && tutorialModal) helpBtn.addEventListener('click', () => { tutorialModal.style.display = 'flex'; });
   if (closeHelpBtn && tutorialModal) closeHelpBtn.addEventListener('click', () => { tutorialModal.style.display = 'none'; });
@@ -290,6 +257,7 @@
     });
 
     scienceDisplay.innerText = `${state.sciencePoints} ⚙`;
+    if (matterDisplay) matterDisplay.innerText = `${Math.floor(state.matter)} 🧱 Materii`;
 
     const bCost = Math.round(20 * Math.pow(1.7, state.beltSpeedLvl - 1));
     beltCostText.innerText = `${bCost} ⚙`;
@@ -321,7 +289,6 @@
       drillCostText.innerText = `40 ⚙`;
       upgDrillBtn.disabled = state.sciencePoints < 40;
     }
-    updateInteractiveTutorial();
   }
 
   function selectTool(name) {
@@ -329,13 +296,18 @@
     if (btn && !btn.disabled) {
       state.currentTool = name;
       toolButtons.forEach(b => b.classList.toggle('active', b.dataset.tool === name));
-      if (name === 'cutter') contextHint.innerHTML = "<b>Przecinarka 2x1 [3]:</b> Zajmuje 2 pola! Ostrze tnie pionowo. Użyj Rotatora, by pociąć połówkę na ćwiartki.";
-      else if (TOOL_HINTS[name]) contextHint.innerHTML = TOOL_HINTS[name];
+      
+      const cost = BUILDING_COSTS[name];
+      const costStr = cost ? ` <span style="color:#3fb950;">(Koszt: ${cost} 🧱)</span>` : "";
+      
+      if (name === 'cutter') contextHint.innerHTML = `<b>Przecinarka 2x1 [3]:</b>${costStr} Zajmuje 2 pola! Ostrze tnie pionowo. Użyj Rotatora, by pociąć połówkę na ćwiartki.`;
+      else if (TOOL_HINTS[name]) contextHint.innerHTML = TOOL_HINTS[name].replace(':', `:${costStr}`);
     }
   }
 
   toolButtons.forEach(btn => btn.addEventListener('click', () => selectTool(btn.dataset.tool)));
 
+  // ... (Przyciski upgBeltBtn, upgMinerBtn, itp. bez zmian) ...
   upgBeltBtn.addEventListener('click', () => {
     const bCost = Math.round(20 * Math.pow(1.7, state.beltSpeedLvl - 1));
     if (state.sciencePoints >= bCost) {
@@ -343,7 +315,6 @@
       updateUI(); saveGame();
     }
   });
-
   upgMinerBtn.addEventListener('click', () => {
     const mCost = Math.round(25 * Math.pow(1.7, state.minerSpeedLvl - 1));
     if (state.sciencePoints >= mCost) {
@@ -351,7 +322,6 @@
       updateUI(); saveGame();
     }
   });
-
   upgHubBtn.addEventListener('click', () => {
     if (state.hubSize >= 4) return;
     const hCost = state.hubSize === 2 ? 50 : 120;
@@ -359,26 +329,37 @@
       state.sciencePoints -= hCost; state.hubSize++; rebuildHub(); updateUI(); saveGame();
     }
   });
-
   upgDrillBtn.addEventListener('click', () => {
     if (!state.rockDrillUnlocked && state.sciencePoints >= 40) {
       state.sciencePoints -= 40; state.rockDrillUnlocked = true; updateUI(); saveGame();
     }
   });
-
   resetSaveBtn.addEventListener('click', () => { if (confirm("Zresetować zapis?")) clearGameSave(); });
 
+  // Modyfikacja zdarzenia Input, aby budowanie pobierało Materię, a kasowanie oddawało 50%
+  const originalApplyTool = window.Factory.applySingleToolCore; // z input.js
+  
   const input = setupInput(canvas, selectTool);
 
+  // Rejestrowanie przychodu z ostatniej minuty do AFK (1-minutowe okno kroczące)
+  let matterGainedThisMinute = 0;
+  let scienceGainedThisMinute = 0;
   setInterval(() => {
-    runSimulationTick(updateUI, (finishedLvl) => {
+    state.matterPerMinute = matterGainedThisMinute;
+    state.sciencePerMinute = scienceGainedThisMinute;
+    matterGainedThisMinute = 0;
+    scienceGainedThisMinute = 0;
+  }, 60000);
+
+  setInterval(() => {
+    runSimulationTick((m, s) => {
+      // Callback z simulation.js o zyskanej materii i nauce w tym ticku
+      if (m > 0) { state.matter += m; matterGainedThisMinute += m; }
+      if (s > 0) { state.sciencePoints += s; scienceGainedThisMinute += s; }
+      updateUI();
+    }, (finishedLvl) => {
       updateUI(); saveGame();
-      if (finishedLvl && Array.isArray(finishedLvl.unlocks) && finishedLvl.unlocks.length > 0) {
-        const primaryUnlock = finishedLvl.unlocks.find(u => UNLOCK_GUIDES[u]) || finishedLvl.unlocks[0];
-        showUnlockGuide(primaryUnlock);
-      }
     });
-    updateInteractiveTutorial();
   }, 100);
 
   setInterval(() => saveGame(), 5000);
@@ -505,13 +486,27 @@
 
     const preview = input.getDragPreview();
     if (preview) {
-      preview.forEach(node => drawBuilding(ctx, node.x, node.y, 'belt', node.rot, 0.45));
+      preview.forEach(node => {
+        // Zabarw podgląd na czerwono, jeśli nie stać nas na taśmociąg
+        const afford = state.matter >= BUILDING_COSTS['belt'];
+        ctx.strokeStyle = afford ? '' : '#f85149';
+        drawBuilding(ctx, node.x, node.y, 'belt', node.rot, afford ? 0.45 : 0.7);
+      });
     } else if (input.getHoverTile) {
       const hover = input.getHoverTile();
       if (hover) {
         if (state.currentTool === 'delete') {
           ctx.strokeStyle = '#f85149'; ctx.lineWidth = 2; ctx.strokeRect(hover.x * GRID_SIZE + 2, hover.y * GRID_SIZE + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-        } else drawBuilding(ctx, hover.x, hover.y, state.currentTool, state.currentRotation, 0.42);
+        } else {
+          const cost = BUILDING_COSTS[state.currentTool] || 0;
+          const afford = state.matter >= cost;
+          
+          if (!afford) {
+            ctx.fillStyle = 'rgba(248, 81, 73, 0.3)';
+            ctx.fillRect(hover.x * GRID_SIZE, hover.y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+          }
+          drawBuilding(ctx, hover.x, hover.y, state.currentTool, state.currentRotation, afford ? 0.42 : 0.2);
+        }
       }
     }
 

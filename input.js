@@ -14,10 +14,19 @@ window.Factory.getSecondaryTile = function(type, gx, gy, rot) {
 window.Factory.setupInput = function(canvas, onToolSelect) {
   const { state, GRID_SIZE, getSecondaryTile } = window.Factory;
 
+  // Zabezpieczenie kolekcji i zmiennych
   state.rocks = state.rocks || new Set();
   state.grid = state.grid || new Map();
   state.patches = state.patches || new Map();
   state.beltItems = state.beltItems || [];
+  state.matter = state.matter || 200;
+
+  // Koszty globalne w Materii
+  const COSTS = {
+    belt: 1, miner: 15, cutter: 30, rotator: 20, merger: 40, 
+    painter: 50, mixer: 60, synthesizer: 100, generator: 150, 
+    splitter: 10, tunnel_in: 25, tunnel_out: 25
+  };
 
   let isMouseDown = false;
   let isRightMouseDown = false;
@@ -26,7 +35,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
   let dragStart = null;
   let dragEnd = null;
 
-  // NAPRAWA SIATKI: Odejmujemy pozycję canvasu (rect.left, rect.top) oraz uwzględniamy skalowanie CSS
+  // Przeliczanie pozycji ekranu na pozycję w świecie z uwzględnieniem offsetu Canvasu
   function screenToWorld(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / (rect.width || canvas.width);
@@ -75,6 +84,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
     const existing = state.grid.get(key);
     if (!existing || existing.type === 'hub') return;
 
+    // Jeżeli budynek zajmuje 2 kafelki, usuń też ten drugi
     if (existing.partnerKey) {
       const [px, py] = existing.partnerKey.split(',').map(Number);
       state.grid.delete(existing.partnerKey);
@@ -89,6 +99,13 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
     const key = `${gx},${gy}`;
 
     if (state.currentTool === 'delete') {
+      // Usuwanie / Rozbiórka
+      const cell = state.grid.get(key);
+      if (cell && cell.type !== 'hub' && cell.type !== 'cutter_sec') {
+         // Zwrot 50% kosztów przy usunięciu budynku
+         state.matter += Math.floor((COSTS[cell.type] || 0) / 2);
+      }
+
       if (state.rocks && state.rocks.has(key)) {
         if (state.rockDrillUnlocked) {
           state.rocks.delete(key);
@@ -99,12 +116,16 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
       return;
     }
 
-    // Sprawdzenie pierwszego pola
+    // Blokada budowania, jeśli nie stać nas na dany budynek
+    const cost = COSTS[state.currentTool] || 0;
+    if (state.matter < cost) return;
+
+    // Sprawdzenie pierwszego pola pod kątem kolizji ze skałami i Hubem
     if (state.rocks && state.rocks.has(key)) return;
     const existing = state.grid.get(key);
     if (existing && existing.type === 'hub') return;
 
-    // Obsługa Przecinarki 2x1 (zajmuje 2 pola)
+    // Specjalna obsługa Przecinarki 2x1 (zajmującej 2 kafelki)
     const secTile = getSecondaryTile(state.currentTool, gx, gy, state.currentRotation);
     if (secTile) {
       const secKey = `${secTile.x},${secTile.y}`;
@@ -112,10 +133,12 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
       const existingSec = state.grid.get(secKey);
       if (existingSec && existingSec.type === 'hub') return;
 
-      // Wyczyść ewentualne stare budynki na obu polach przed postawieniem Przecinarki 2x1
+      // Usunięcie starych struktur z obu kratek
       removeBuildingAt(gx, gy);
       removeBuildingAt(secTile.x, secTile.y);
 
+      state.matter -= cost; // Pobranie opłaty
+      
       state.grid.set(key, {
         type: 'cutter',
         x: gx,
@@ -125,7 +148,6 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
         timer: 0,
         storedShape: null
       });
-
       state.grid.set(secKey, {
         type: 'cutter_sec',
         x: secTile.x,
@@ -138,8 +160,10 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
       return;
     }
 
-    // Standardowy budynek 1x1
+    // Standardowe budynki 1x1
     removeBuildingAt(gx, gy);
+    state.matter -= cost; // Pobranie opłaty
+
     state.grid.set(key, {
       type: state.currentTool,
       x: gx,
@@ -201,13 +225,20 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
       isMouseDown = false;
       if (state.currentTool === 'belt' && dragStart && dragEnd) {
         const path = calculateBeltPath(dragStart, dragEnd);
+        const beltCost = COSTS['belt'];
+        
         path.forEach(node => {
           const key = `${node.x},${node.y}`;
           if (state.rocks && state.rocks.has(key)) return;
           const existing = state.grid.get(key);
+          
           if (!existing || existing.type !== 'hub') {
-            removeBuildingAt(node.x, node.y);
-            state.grid.set(key, { type: 'belt', x: node.x, y: node.y, rot: node.rot });
+            // Sprawdzenie, czy stać nas na kolejny kawałek taśmociągu
+            if (state.matter >= beltCost) {
+              removeBuildingAt(node.x, node.y);
+              state.matter -= beltCost; // Opłata za 1 kafelek taśmociągu
+              state.grid.set(key, { type: 'belt', x: node.x, y: node.y, rot: node.rot });
+            }
           }
         });
       }

@@ -287,15 +287,22 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     }
   });
 
-  // Rdzeń Bazy (Hub): Gwiazdy dają 5 ⚙, zwykłe elementy 1 ⚙
+// Rdzeń Bazy (Hub): Gwiazdy dają 5 ⚙ i 10 🧱, zwykłe elementy 1 ⚙ i 2 🧱
   let changed = false;
+  let gainedMatterTick = 0;
+  let gainedScienceTick = 0;
+  
   for (let i = state.beltItems.length - 1; i >= 0; i--) {
     const item = state.beltItems[i];
     const cell = state.grid.get(`${item.curX},${item.curY}`);
 
     if (cell && cell.type === 'hub') {
       const hasStar = !item.isDye && Array.isArray(item.shape) && item.shape.some(q => q && q.type === 'star');
-      state.sciencePoints += hasStar ? 5 : 1;
+      const sPoints = hasStar ? 5 : 1;
+      const mPoints = hasStar ? 10 : 2; // Każdy dowieziony surowiec to Materia zdatna do budowy!
+      
+      gainedScienceTick += sPoints;
+      gainedMatterTick += mPoints;
       changed = true;
 
       if (!item.isDye) {
@@ -317,6 +324,6 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
   }
 
   if (changed && onUIUpdate) {
-    onUIUpdate();
+    onUIUpdate(gainedMatterTick, gainedScienceTick); // Zwracamy uzysk, żeby main.js mógł podbić wynik
   }
 };
