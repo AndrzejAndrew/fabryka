@@ -22,10 +22,11 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
   state.beltItems = state.beltItems || [];
   state.matter = state.matter || 200;
 
-  const COSTS = {
+const COSTS = {
     belt: 1, miner: 15, cutter: 30, rotator: 20, merger: 40, 
     painter: 50, mixer: 60, synthesizer: 100, generator: 150, 
-    splitter: 10, tunnel_in: 25, tunnel_out: 25
+    splitter: 10, tunnel_in: 25, tunnel_out: 25,
+    incinerator: 80, landfill: 20
   };
 
   let isMouseDown = false; let isRightMouseDown = false;
@@ -194,6 +195,8 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
     else if (k === '9') onToolSelect('generator'); else if (k === '0') onToolSelect('splitter');
     else if (k === 'q') onToolSelect('tunnel_in'); else if (k === 'e') onToolSelect('tunnel_out');
     else if (k === 'x' || e.key === 'Delete' || e.key === 'Backspace') onToolSelect('delete');
+	else if (k === 'c') onToolSelect('incinerator');
+    else if (k === 'v') onToolSelect('landfill');
   });
 
   return { getDragPreview: () => (isMouseDown && state.currentTool === 'belt' && dragStart && dragEnd) ? calculateBeltPath(dragStart, dragEnd) : null, getHoverTile: () => hoverGrid };
