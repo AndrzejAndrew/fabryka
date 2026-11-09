@@ -420,7 +420,7 @@
     if (item.isWaste) {
       if (nextCell.type === 'incinerator') return true;
       if (nextCell.type === 'landfill') return (nextCell.storedWaste || 0) < 100;
-      if (nextCell.type === ' splitter') return !nextCell.storedItem;
+      if (nextCell.type === 'splitter') return !nextCell.storedItem;
       if (nextCell.type === 'tunnel_in') return !nextCell.storedShape && !nextCell.storedDye && !nextCell.hasWasteStored;
       return false;
     }
@@ -428,22 +428,32 @@
     if (nextCell.type === 'cutter') return !item.isDye && !nextCell.storedShape;
     if (nextCell.type === 'rotator') return !item.isDye && !nextCell.storedShape;
 
-    if (['merger_sec', 'painter_sec', 'mixer_sec', 'synthesizer_sec'].includes(nextCell.type)) {
+    // MONTER 2x1: wjazd do lewego i prawego slotu
+    if (nextCell.type === 'merger') return !item.isDye && !nextCell.storedLeft;
+    if (nextCell.type === 'merger_sec') {
       const main = state.grid.get(nextCell.partnerKey);
-      if (!main) return false;
-      if (nextCell.type === 'merger_sec') return !item.isDye && !main.storedRight;
-      if (nextCell.type === 'painter_sec') return item.isDye && !main.storedRight;
-      if (nextCell.type === 'mixer_sec') return item.isDye && !main.storedRight;
-      if (nextCell.type === 'synthesizer_sec') return !item.isDye && isFullShapeOfType(item.shape, 'square') && !main.storedRight;
-      return false;
+      return main && !item.isDye && !main.storedRight;
     }
 
-    if (['merger', 'painter', 'mixer', 'synthesizer'].includes(nextCell.type)) {
-      if (nextCell.type === 'merger') return !item.isDye && !nextCell.storedLeft;
-      if (nextCell.type === 'painter') return !item.isDye && !nextCell.storedLeft;
-      if (nextCell.type === 'mixer') return item.isDye && !nextCell.storedLeft;
-      if (nextCell.type === 'synthesizer') return !item.isDye && isFullShapeOfType(item.shape, 'circle') && !nextCell.storedLeft;
-      return false;
+    // SYNTEZATOR 2x1: Lewy kafel: Koło | Prawy kafel: Kwadrat
+    if (nextCell.type === 'synthesizer') return !item.isDye && isFullShapeOfType(item.shape, 'circle') && !nextCell.storedLeft;
+    if (nextCell.type === 'synthesizer_sec') {
+      const main = state.grid.get(nextCell.partnerKey);
+      return main && !item.isDye && isFullShapeOfType(item.shape, 'square') && !main.storedRight;
+    }
+
+    // LAKIERNIA 2x1: Lewy kafel: Kształt | Prawy kafel: Barwnik
+    if (nextCell.type === 'painter') return !item.isDye && !nextCell.storedLeft;
+    if (nextCell.type === 'painter_sec') {
+      const main = state.grid.get(nextCell.partnerKey);
+      return main && item.isDye && !main.storedRight;
+    }
+
+    // MIESZALNIK 2x1: Lewy i prawy slot przyjmują barwniki
+    if (nextCell.type === 'mixer') return item.isDye && !nextCell.storedLeft;
+    if (nextCell.type === 'mixer_sec') {
+      const main = state.grid.get(nextCell.partnerKey);
+      return main && item.isDye && !main.storedRight;
     }
 
     if (nextCell.type === 'generator') return isFullShapeOfType(item.shape, 'star') && (nextCell.fuelTimer || 0) < 100;
