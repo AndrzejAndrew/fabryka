@@ -26,7 +26,6 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       const patch = state.patches.get(`${b.x},${b.y}`);
       if (!patch) return;
       
-      // BONUS Z PRESTIŻU: +25% prędkości wydobycia za każdy Rdzeń Kwantowy
       const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
       
       b.timer = (b.timer || 0) + ((b.isPowered ? 2 : 1) * prestigeMult);
@@ -89,63 +88,72 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
-    // Nowy Monter 2x1 (Łączy storedLeft z głównego kafelka i storedRight z prawego kafelka)
+    // Monter 2x1 (Łączy storedLeft z głównego kafelka i storedRight z prawego kafelka)
     if (b.type === 'merger' && b.storedLeft && b.storedRight) {
       const fwd = DIRS[b.rot];
-      // Wypuszcza złączony element środkiem z głównego kafelka
-      const tx = b.x + fwd.x;
-      const ty = b.y + fwd.y;
+      const tx = b.x + fwd.x; const ty = b.y + fwd.y;
       const target = state.grid.get(`${tx},${ty}`);
       const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
-
       if (target && !occ) {
         const merged = combineShapes(b.storedLeft, b.storedRight);
         state.beltItems.push({ curX: tx, curY: ty, isDye: false, shape: merged, progress: 0 });
-        b.storedLeft = null;
-        b.storedRight = null;
+        b.storedLeft = null; b.storedRight = null;
       }
     }
 
-    if (b.type === 'painter' && b.storedShape && b.storedDye) {
-      const fwd = DIRS[b.rot]; const tx = b.x + fwd.x; const ty = b.y + fwd.y;
+    // Lakiernia 2x1 (Lewe wejście to kształt, prawe to barwnik)
+    if (b.type === 'painter' && b.storedLeft && b.storedRight) {
+      const fwd = DIRS[b.rot];
+      const tx = b.x + fwd.x; const ty = b.y + fwd.y;
       const target = state.grid.get(`${tx},${ty}`);
       const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
       if (target && !occ) {
-        const painted = b.storedShape.map(quad => quad ? { type: quad.type, color: b.storedDye } : null);
+        const painted = b.storedLeft.map(quad => quad ? { type: quad.type, color: b.storedRight } : null);
         state.beltItems.push({ curX: tx, curY: ty, isDye: false, shape: painted, progress: 0 });
-        b.storedShape = null; b.storedDye = null;
+        b.storedLeft = null; b.storedRight = null;
       }
     }
 
-    if (b.type === 'mixer' && b.storedDyes && b.storedDyes.length >= 2) {
-      const fwd = DIRS[b.rot]; const tx = b.x + fwd.x; const ty = b.y + fwd.y;
+    // Mieszalnik 2x1 (Lewe wejście to barwnik, prawe to barwnik)
+    if (b.type === 'mixer' && b.storedLeft && b.storedRight) {
+      const fwd = DIRS[b.rot]; 
+      const tx = b.x + fwd.x; const ty = b.y + fwd.y;
       const target = state.grid.get(`${tx},${ty}`);
       const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
       if (target && !occ) {
-        const d1 = b.storedDyes[0]; const d2 = b.storedDyes[1];
-        const newColor = COLOR_MIXES[`${d1}+${d2}`] || d1;
+        const newColor = COLOR_MIXES[`${b.storedLeft}+${b.storedRight}`] || b.storedLeft;
         state.beltItems.push({ curX: tx, curY: ty, isDye: true, dyeColor: newColor, progress: 0 });
-        b.storedDyes = [];
+        b.storedLeft = null; b.storedRight = null;
       }
     }
 
-    if (b.type === 'synthesizer' && b.hasCircle && b.hasSquare) {
-      const fwd = DIRS[b.rot]; const tx = b.x + fwd.x; const ty = b.y + fwd.y;
+    // Syntezator 2x1 (Lewe wejście to Koło, Prawe to Kwadrat)
+    if (b.type === 'synthesizer' && b.storedLeft && b.storedRight) {
+      const fwd = DIRS[b.rot]; 
+      const tx = b.x + fwd.x; const ty = b.y + fwd.y;
       const target = state.grid.get(`${tx},${ty}`);
       const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
       if (target && !occ) {
-        const starColor = b.circleColor !== 'uncolored' ? b.circleColor : (b.squareColor || 'uncolored');
+        const circleColor = b.storedLeft[0] ? b.storedLeft[0].color : 'uncolored';
+        const squareColor = b.storedRight[0] ? b.storedRight[0].color : 'uncolored';
+        const starColor = circleColor !== 'uncolored' ? circleColor : (squareColor !== 'uncolored' ? squareColor : 'uncolored');
+        
         const q = makeQuad('star', starColor);
         state.beltItems.push({ curX: tx, curY: ty, isDye: false, shape: [{ ...q }, { ...q }, { ...q }, { ...q }], progress: 0 });
-        b.hasCircle = false; b.hasSquare = false;
+        b.storedLeft = null; b.storedRight = null;
       }
     }
 
+    // Splitter (Rozdzielacz) 2x1 - jedno wejście z tyłu, wyjście główne do przodu i pomocnicze do przodu
     if (b.type === 'splitter' && b.storedItem) {
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
-      const targets = [ { x: b.x + fwd.x, y: b.y + fwd.y }, { x: b.x + right.x, y: b.y + right.y } ];
+      const mainOut = { x: b.x + fwd.x, y: b.y + fwd.y };
+      const secOut = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; // Do przodu z prawego kafelka
+      
       b.splitToggle = (b.splitToggle || 0) % 2;
+      const targets = [mainOut, secOut];
       const firstIdx = b.splitToggle; const secondIdx = 1 - firstIdx;
+      
       for (const idx of [firstIdx, secondIdx]) {
         const tPos = targets[idx]; const tCell = state.grid.get(`${tPos.x},${tPos.y}`);
         const occ = state.beltItems.some(i => i.curX === tPos.x && i.curY === tPos.y);
@@ -175,10 +183,9 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     }
   });
 
- let changed = false;
+  let changed = false;
   let gainedMatterTick = 0; let gainedScienceTick = 0;
   
-  // BONUS Z PRESTIŻU: +25% zysków z każdego przedmiotu
   const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
 
   for (let i = state.beltItems.length - 1; i >= 0; i--) {

@@ -36,7 +36,7 @@ window.Factory.drawRock = function(ctx, gx, gy) {
 };
 
 window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj = null) {
-  if (type.endsWith('_sec')) return; // Ukrywamy drugi kafelek 2-polowych maszyn
+  if (type.endsWith('_sec')) return; // Ukrywamy drugi kafelek 2-polowych maszyn. Główna maszyna narysuje całość.
   
   const { GRID_SIZE, DIRS } = window.Factory;
   const cx = gx * GRID_SIZE + GRID_SIZE / 2; const cy = gy * GRID_SIZE + GRID_SIZE / 2;
@@ -58,46 +58,54 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4);
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(GRID_SIZE * 0.5, -GRID_SIZE * 0.36); ctx.lineTo(GRID_SIZE * 0.5, GRID_SIZE * 0.36); ctx.stroke();
     ctx.fillStyle = '#d29922'; ctx.beginPath(); ctx.moveTo(-6, GRID_SIZE * 0.42); ctx.lineTo(6, GRID_SIZE * 0.42); ctx.lineTo(0, GRID_SIZE * 0.24); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#ff7b72'; ctx.beginPath(); ctx.arc(0, -GRID_SIZE * 0.32, 4.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#58a6ff'; ctx.beginPath(); ctx.arc(GRID_SIZE, -GRID_SIZE * 0.32, 4.5, 0, Math.PI * 2); ctx.fill();
   } else if (type === 'merger') {
-    // Monter 2x1 z dwoma wejściami
     ctx.fillStyle = '#bd2c00'; ctx.strokeStyle = '#f85149'; ctx.lineWidth = 2;
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4);
-    // Lewe i Prawe wejście
-    ctx.fillStyle = '#d29922';
-    ctx.fillRect(-6, GRID_SIZE * 0.25, 12, 6);
-    ctx.fillRect(GRID_SIZE - 6, GRID_SIZE * 0.25, 12, 6);
-    // Wyjście i strzałka składania
+    ctx.fillStyle = '#d29922'; ctx.fillRect(-6, GRID_SIZE * 0.25, 12, 6); ctx.fillRect(GRID_SIZE - 6, GRID_SIZE * 0.25, 12, 6);
     ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-GRID_SIZE * 0.22, -GRID_SIZE * 0.1); ctx.lineTo(0, -GRID_SIZE * 0.35); ctx.lineTo(GRID_SIZE * 0.22, -GRID_SIZE * 0.1); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.moveTo(0, GRID_SIZE * 0.1); ctx.lineTo(GRID_SIZE * 0.5, -GRID_SIZE * 0.1); ctx.lineTo(GRID_SIZE, GRID_SIZE * 0.1); ctx.stroke();
+  } else if (type === 'painter') {
+    ctx.fillStyle = '#9a6700'; ctx.strokeStyle = '#d29922'; ctx.lineWidth = 2;
+    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4);
+    // Ikona wejść
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.strokeRect(-6, GRID_SIZE * 0.15, 12, 12); // Kształt po lewej
+    ctx.fillStyle = '#ff7b72'; ctx.beginPath(); ctx.arc(GRID_SIZE, GRID_SIZE * 0.22, 6, 0, Math.PI * 2); ctx.fill(); // Barwnik po prawej
+    // Strzałka wyjścia na lewym głównym kafelku
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-6, -10); ctx.lineTo(6, -10); ctx.lineTo(0, -18); ctx.closePath(); ctx.fill();
+  } else if (type === 'mixer') {
+    ctx.fillStyle = '#553098'; ctx.strokeStyle = '#a371f7'; ctx.lineWidth = 2;
+    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4);
+    // Dwa kolory na wlocie
+    ctx.fillStyle = '#ff4d4f'; ctx.beginPath(); ctx.arc(0, GRID_SIZE * 0.22, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1890ff'; ctx.beginPath(); ctx.arc(GRID_SIZE, GRID_SIZE * 0.22, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-6, -10); ctx.lineTo(6, -10); ctx.lineTo(0, -18); ctx.closePath(); ctx.fill();
+  } else if (type === 'synthesizer') {
+    ctx.fillStyle = '#0969da'; ctx.strokeStyle = '#54aeff'; ctx.lineWidth = 2;
+    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4);
+    // Koło po lewej, kwadrat po prawej
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, GRID_SIZE * 0.2, 5, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeRect(GRID_SIZE - 5, GRID_SIZE * 0.15, 10, 10);
+    // Gwiazdka wyjściowa
+    ctx.fillStyle = '#fadb14'; ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(3, -5); ctx.lineTo(10, -2); ctx.lineTo(3, 1); ctx.lineTo(0, 8); ctx.lineTo(-3, 1); ctx.lineTo(-10, -2); ctx.lineTo(-3, -5); ctx.closePath(); ctx.fill();
+  } else if (type === 'splitter') {
+    ctx.fillStyle = '#2d333b'; ctx.strokeStyle = '#636e7b'; ctx.lineWidth = 2;
+    // Splitter 2x1
+    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4);
+    // Wejście
+    ctx.fillStyle = '#d29922'; ctx.fillRect(-6, GRID_SIZE * 0.25, 12, 6);
+    // Strzałki wyjścia (lewy przód i prawy przód)
+    ctx.fillStyle = '#58a6ff'; 
+    ctx.beginPath(); ctx.moveTo(-6, 2); ctx.lineTo(6, 2); ctx.lineTo(0, -12); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(GRID_SIZE - 6, 2); ctx.lineTo(GRID_SIZE + 6, 2); ctx.lineTo(GRID_SIZE, -12); ctx.closePath(); ctx.fill();
   } else if (type === 'rotator') {
     ctx.fillStyle = '#1f6feb'; ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2;
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, GRID_SIZE * 0.22, -Math.PI * 0.7, Math.PI * 0.5); ctx.stroke();
-  } else if (type === 'painter') {
-    ctx.fillStyle = '#9a6700'; ctx.strokeStyle = '#d29922'; ctx.lineWidth = 2;
-    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-    ctx.fillStyle = '#ff7b72'; ctx.beginPath(); ctx.arc(0, 0, GRID_SIZE * 0.22, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'mixer') {
-    ctx.fillStyle = '#553098'; ctx.strokeStyle = '#a371f7'; ctx.lineWidth = 2;
-    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-    ctx.fillStyle = '#ff4d4f'; ctx.beginPath(); ctx.arc(-6, 5, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#52c41a'; ctx.beginPath(); ctx.arc(6, 5, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fadb14'; ctx.beginPath(); ctx.arc(0, -6, 4.5, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'synthesizer') {
-    ctx.fillStyle = '#0969da'; ctx.strokeStyle = '#54aeff'; ctx.lineWidth = 2;
-    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-    ctx.fillStyle = '#fadb14'; ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(3, -3); ctx.lineTo(10, 0); ctx.lineTo(3, 3); ctx.lineTo(0, 10); ctx.lineTo(-3, 3); ctx.lineTo(-10, 0); ctx.lineTo(-3, -3); ctx.closePath(); ctx.fill();
   } else if (type === 'generator') {
     const active = bObj && bObj.fuelTimer > 0;
     ctx.fillStyle = active ? '#b08800' : '#30363d'; ctx.strokeStyle = active ? '#fadb14' : '#6e7681'; ctx.lineWidth = 2;
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
     ctx.fillStyle = active ? '#ffffff' : '#8b949e'; ctx.beginPath(); ctx.moveTo(2, -10); ctx.lineTo(-6, 1); ctx.lineTo(1, 1); ctx.lineTo(-2, 10); ctx.lineTo(6, -1); ctx.lineTo(-1, -1); ctx.closePath(); ctx.fill();
-  } else if (type === 'splitter') {
-    ctx.fillStyle = '#2d333b'; ctx.strokeStyle = '#636e7b'; ctx.lineWidth = 2;
-    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-    ctx.fillStyle = '#58a6ff'; ctx.beginPath(); ctx.arc(0, -GRID_SIZE * 0.3, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(GRID_SIZE * 0.3, 0, 3.5, 0, Math.PI * 2); ctx.fill();
   } else if (type === 'tunnel_in' || type === 'tunnel_out') {
     ctx.fillStyle = '#382554'; ctx.strokeStyle = '#8957e5'; ctx.lineWidth = 2;
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
