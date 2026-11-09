@@ -49,6 +49,8 @@ window.Factory.TOOL_HINTS = {
   splitter: "<strong>Rozdzielacz [0]:</strong> Rozdziela przedmioty naprzemiennie: na wprost oraz w prawy bok.",
   tunnel_in: "<strong>Tunel Wejście [Q]:</strong> Przesyła surowce pod ziemią (do 5 kratek) pod innymi taśmami.",
   tunnel_out: "<strong>Tunel Wyjście [E]:</strong> Odbiera surowce z Tunelu Wejściowego w tej samej linii.",
+  incinerator: "<strong>Spalarnia:</strong> Niszczy Żużel (Odpad) i generuje z niego prąd na 10 sekund!",
+  landfill: "<strong>Wysypisko:</strong> Magazynuje do 100 sztuk Żużla. Gdy się zapcha, musisz postawić nowe lub spalić zawartość.",
   delete: "<strong>Rozbiórka [X]:</strong> Usuwa budynki oraz kruszy skały 🪨 po odblokowaniu Świdrów."
 };
 
@@ -85,14 +87,14 @@ window.Factory.LEVELS = [
     title: "Dostarcz Hybrydę (Prawa: Kwadrat, Lewa: Koło)",
     requiredCount: 35,
     targetShape: [mq('square'), mq('square'), mq('circle'), mq('circle')],
-    unlocks: ['synthesizer']
+    unlocks: ['synthesizer', 'landfill'] // Dodane Wysypisko
   },
   {
     lvl: 5,
     title: "Synteza: Dostarcz Gwiazdy (Koło + Kwadrat)",
     requiredCount: 30,
     targetShape: [mq('star'), mq('star'), mq('star'), mq('star')],
-    unlocks: ['generator', 'painter']
+    unlocks: ['generator', 'painter', 'incinerator'] // Dodana Spalarnia
   },
   {
     lvl: 6,

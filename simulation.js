@@ -9,10 +9,17 @@ window.Factory.isFullShapeOfType = function(shape, type) { if (!Array.isArray(sh
 window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
   const { state, DIRS, LEVELS, COLOR_MIXES, POWER_RADIUS, makeQuad } = window.Factory;
 
+  // --- KROK 1: SIEĆ ENERGETYCZNA (GENERATORY I SPALARNIE) ---
   const activeGenerators = [];
   state.grid.forEach(b => {
     b.isPowered = false;
-    if (b.type === 'generator') { if ((b.fuelTimer || 0) > 0) { b.fuelTimer--; activeGenerators.push(b); } }
+    // Spalarnia (incinerator) i Generator ładują okolicę prądem
+    if (b.type === 'generator' || b.type === 'incinerator') { 
+      if ((b.fuelTimer || 0) > 0) { 
+        b.fuelTimer--; 
+        activeGenerators.push(b); 
+      } 
+    }
   });
 
   state.grid.forEach(b => {
@@ -21,14 +28,16 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     }
   });
 
+  // --- KROK 2: LOGIKA MASZYN ---
   state.grid.forEach(b => {
+    
     if (b.type === 'miner') {
       const patch = state.patches.get(`${b.x},${b.y}`);
       if (!patch) return;
       
       const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
-      
       b.timer = (b.timer || 0) + ((b.isPowered ? 2 : 1) * prestigeMult);
+      
       if (b.timer >= state.minerInterval) {
         b.timer = 0;
         const dir = DIRS[b.rot];
@@ -39,9 +48,9 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
           if (!occ) {
             if (patch.kind === 'shape') {
               const q = makeQuad(patch.subType, 'uncolored');
-              state.beltItems.push({ curX: tx, curY: ty, isDye: false, shape: [{ ...q }, { ...q }, { ...q }, { ...q }], progress: 0 });
+              state.beltItems.push({ curX: tx, curY: ty, isDye: false, isWaste: false, shape: [{ ...q }, { ...q }, { ...q }, { ...q }], progress: 0 });
             } else if (patch.kind === 'dye') {
-              state.beltItems.push({ curX: tx, curY: ty, isDye: true, dyeColor: patch.subType, progress: 0 });
+              state.beltItems.push({ curX: tx, curY: ty, isDye: true, isWaste: false, dyeColor: patch.subType, progress: 0 });
             }
           }
         }
@@ -66,14 +75,14 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       const hasRight = Boolean(halfRight[0] || halfRight[1]);
 
       if (mainTarget && secTarget && !mainBlocked && !secBlocked) {
-        if (hasLeft) state.beltItems.push({ curX: outMainX, curY: outMainY, isDye: false, shape: halfLeft, progress: 0 });
-        if (hasRight) state.beltItems.push({ curX: outSecX, curY: outSecY, isDye: false, shape: halfRight, progress: 0 });
+        if (hasLeft) state.beltItems.push({ curX: outMainX, curY: outMainY, isDye: false, isWaste: false, shape: halfLeft, progress: 0 });
+        if (hasRight) state.beltItems.push({ curX: outSecX, curY: outSecY, isDye: false, isWaste: false, shape: halfRight, progress: 0 });
         b.storedShape = null;
       } else if (mainTarget && !secTarget && !mainBlocked) {
-        if (hasLeft) state.beltItems.push({ curX: outMainX, curY: outMainY, isDye: false, shape: halfLeft, progress: 0 });
+        if (hasLeft) state.beltItems.push({ curX: outMainX, curY: outMainY, isDye: false, isWaste: false, shape: halfLeft, progress: 0 });
         b.storedShape = null;
       } else if (secTarget && !mainTarget && !secBlocked) {
-        if (hasRight) state.beltItems.push({ curX: outSecX, curY: outSecY, isDye: false, shape: halfRight, progress: 0 });
+        if (hasRight) state.beltItems.push({ curX: outSecX, curY: outSecY, isDye: false, isWaste: false, shape: halfRight, progress: 0 });
         b.storedShape = null;
       }
     }
@@ -83,12 +92,11 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       const target = state.grid.get(`${tx},${ty}`);
       const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
       if (target && !occ) {
-        state.beltItems.push({ curX: tx, curY: ty, isDye: false, shape: rotateShapeRight(b.storedShape), progress: 0 });
+        state.beltItems.push({ curX: tx, curY: ty, isDye: false, isWaste: false, shape: rotateShapeRight(b.storedShape), progress: 0 });
         b.storedShape = null;
       }
     }
 
-    // Monter 2x1 (Łączy storedLeft z głównego kafelka i storedRight z prawego kafelka)
     if (b.type === 'merger' && b.storedLeft && b.storedRight) {
       const fwd = DIRS[b.rot];
       const tx = b.x + fwd.x; const ty = b.y + fwd.y;
@@ -96,25 +104,32 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
       if (target && !occ) {
         const merged = combineShapes(b.storedLeft, b.storedRight);
-        state.beltItems.push({ curX: tx, curY: ty, isDye: false, shape: merged, progress: 0 });
+        state.beltItems.push({ curX: tx, curY: ty, isDye: false, isWaste: false, shape: merged, progress: 0 });
         b.storedLeft = null; b.storedRight = null;
       }
     }
 
-    // Lakiernia 2x1 (Lewe wejście to kształt, prawe to barwnik)
+    // --- NOWA LAKIERNIA 2x1 Z ODPADAMI ---
     if (b.type === 'painter' && b.storedLeft && b.storedRight) {
-      const fwd = DIRS[b.rot];
-      const tx = b.x + fwd.x; const ty = b.y + fwd.y;
-      const target = state.grid.get(`${tx},${ty}`);
-      const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
-      if (target && !occ) {
+      const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
+      const outMain = { x: b.x + fwd.x, y: b.y + fwd.y }; 
+      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; // Wylot żużla
+      
+      const targetMain = state.grid.get(`${outMain.x},${outMain.y}`);
+      const targetSec = state.grid.get(`${outSec.x},${outSec.y}`);
+      const occMain = state.beltItems.some(i => i.curX === outMain.x && i.curY === outMain.y);
+      const occSec = state.beltItems.some(i => i.curX === outSec.x && i.curY === outSec.y);
+      
+      // Lakiernia działa tylko jeśli może wyrzucić kształt ORAZ odpad
+      if (targetMain && targetSec && !occMain && !occSec) {
         const painted = b.storedLeft.map(quad => quad ? { type: quad.type, color: b.storedRight } : null);
-        state.beltItems.push({ curX: tx, curY: ty, isDye: false, shape: painted, progress: 0 });
+        state.beltItems.push({ curX: outMain.x, curY: outMain.y, isDye: false, isWaste: false, shape: painted, progress: 0 }); // Główny produkt
+        state.beltItems.push({ curX: outSec.x, curY: outSec.y, isDye: false, isWaste: true, shape: null, progress: 0 }); // Żużel
+        
         b.storedLeft = null; b.storedRight = null;
       }
     }
 
-    // Mieszalnik 2x1 (Lewe wejście to barwnik, prawe to barwnik)
     if (b.type === 'mixer' && b.storedLeft && b.storedRight) {
       const fwd = DIRS[b.rot]; 
       const tx = b.x + fwd.x; const ty = b.y + fwd.y;
@@ -122,33 +137,39 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
       if (target && !occ) {
         const newColor = COLOR_MIXES[`${b.storedLeft}+${b.storedRight}`] || b.storedLeft;
-        state.beltItems.push({ curX: tx, curY: ty, isDye: true, dyeColor: newColor, progress: 0 });
+        state.beltItems.push({ curX: tx, curY: ty, isDye: true, isWaste: false, dyeColor: newColor, progress: 0 });
         b.storedLeft = null; b.storedRight = null;
       }
     }
 
-    // Syntezator 2x1 (Lewe wejście to Koło, Prawe to Kwadrat)
+    // --- NOWY SYNTEZATOR 2x1 Z ODPADAMI ---
     if (b.type === 'synthesizer' && b.storedLeft && b.storedRight) {
-      const fwd = DIRS[b.rot]; 
-      const tx = b.x + fwd.x; const ty = b.y + fwd.y;
-      const target = state.grid.get(`${tx},${ty}`);
-      const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
-      if (target && !occ) {
+      const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
+      const outMain = { x: b.x + fwd.x, y: b.y + fwd.y }; 
+      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; // Wylot żużla
+      
+      const targetMain = state.grid.get(`${outMain.x},${outMain.y}`);
+      const targetSec = state.grid.get(`${outSec.x},${outSec.y}`);
+      const occMain = state.beltItems.some(i => i.curX === outMain.x && i.curY === outMain.y);
+      const occSec = state.beltItems.some(i => i.curX === outSec.x && i.curY === outSec.y);
+      
+      if (targetMain && targetSec && !occMain && !occSec) {
         const circleColor = b.storedLeft[0] ? b.storedLeft[0].color : 'uncolored';
         const squareColor = b.storedRight[0] ? b.storedRight[0].color : 'uncolored';
         const starColor = circleColor !== 'uncolored' ? circleColor : (squareColor !== 'uncolored' ? squareColor : 'uncolored');
         
         const q = makeQuad('star', starColor);
-        state.beltItems.push({ curX: tx, curY: ty, isDye: false, shape: [{ ...q }, { ...q }, { ...q }, { ...q }], progress: 0 });
+        state.beltItems.push({ curX: outMain.x, curY: outMain.y, isDye: false, isWaste: false, shape: [{ ...q }, { ...q }, { ...q }, { ...q }], progress: 0 }); // Gwiazda
+        state.beltItems.push({ curX: outSec.x, curY: outSec.y, isDye: false, isWaste: true, shape: null, progress: 0 }); // Żużel
+        
         b.storedLeft = null; b.storedRight = null;
       }
     }
 
-    // Splitter (Rozdzielacz) 2x1 - jedno wejście z tyłu, wyjście główne do przodu i pomocnicze do przodu
     if (b.type === 'splitter' && b.storedItem) {
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
       const mainOut = { x: b.x + fwd.x, y: b.y + fwd.y };
-      const secOut = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; // Do przodu z prawego kafelka
+      const secOut = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y };
       
       b.splitToggle = (b.splitToggle || 0) % 2;
       const targets = [mainOut, secOut];
@@ -158,13 +179,13 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
         const tPos = targets[idx]; const tCell = state.grid.get(`${tPos.x},${tPos.y}`);
         const occ = state.beltItems.some(i => i.curX === tPos.x && i.curY === tPos.y);
         if (tCell && !occ) {
-          state.beltItems.push({ curX: tPos.x, curY: tPos.y, isDye: b.storedItem.isDye, dyeColor: b.storedItem.dyeColor, shape: b.storedItem.shape, progress: 0 });
+          state.beltItems.push({ curX: tPos.x, curY: tPos.y, isDye: b.storedItem.isDye, isWaste: b.storedItem.isWaste, dyeColor: b.storedItem.dyeColor, shape: b.storedItem.shape, progress: 0 });
           b.storedItem = null; b.splitToggle = 1 - idx; break;
         }
       }
     }
 
-    if (b.type === 'tunnel_in' && (b.storedShape || b.storedDye)) {
+    if (b.type === 'tunnel_in' && (b.storedShape || b.storedDye || b.hasWasteStored)) {
       const dir = DIRS[b.rot];
       for (let dist = 1; dist <= 5; dist++) {
         const tx = b.x + dir.x * dist; const ty = b.y + dir.y * dist;
@@ -174,8 +195,13 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
           const destCell = state.grid.get(`${destX},${destY}`);
           const blocked = state.beltItems.some(i => i.curX === destX && i.curY === destY);
           if (destCell && !blocked) {
-            if (b.storedShape) { state.beltItems.push({ curX: destX, curY: destY, isDye: false, shape: b.storedShape, progress: 0 }); b.storedShape = null; } 
-            else { state.beltItems.push({ curX: destX, curY: destY, isDye: true, dyeColor: b.storedDye, progress: 0 }); b.storedDye = null; }
+            if (b.hasWasteStored) {
+              state.beltItems.push({ curX: destX, curY: destY, isDye: false, isWaste: true, shape: null, progress: 0 }); b.hasWasteStored = false;
+            } else if (b.storedShape) { 
+              state.beltItems.push({ curX: destX, curY: destY, isDye: false, isWaste: false, shape: b.storedShape, progress: 0 }); b.storedShape = null; 
+            } else { 
+              state.beltItems.push({ curX: destX, curY: destY, isDye: true, isWaste: false, dyeColor: b.storedDye, progress: 0 }); b.storedDye = null; 
+            }
           }
           break;
         }
@@ -183,9 +209,9 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     }
   });
 
+  // --- KROK 3: WCHŁANIANIE PRZEZ HUB ---
   let changed = false;
   let gainedMatterTick = 0; let gainedScienceTick = 0;
-  
   const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
 
   for (let i = state.beltItems.length - 1; i >= 0; i--) {
@@ -193,27 +219,11 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     const cell = state.grid.get(`${item.curX},${item.curY}`);
 
     if (cell && cell.type === 'hub') {
-      const hasStar = !item.isDye && Array.isArray(item.shape) && item.shape.some(q => q && q.type === 'star');
-      const sPoints = Math.floor((hasStar ? 5 : 1) * prestigeMult); 
-      const mPoints = Math.floor((hasStar ? 10 : 2) * prestigeMult);
-      
-      gainedScienceTick += sPoints; gainedMatterTick += mPoints; changed = true;
-
-      if (!item.isDye) {
-        const curLevel = LEVELS[state.currentLvlIndex];
-        if (curLevel && shapesEqual(item.shape, curLevel.targetShape)) {
-          state.currentLvlProgress++;
-          if (state.currentLvlProgress >= curLevel.requiredCount) {
-            const finishedLevel = curLevel;
-            if (state.currentLvlIndex < LEVELS.length - 1) {
-              state.currentLvlIndex++; state.currentLvlProgress = 0;
-              if (onLevelUp) onLevelUp(finishedLevel, LEVELS[state.currentLvlIndex]);
-            }
-          }
-        }
+      // Hub nie daje punktów za śmieci!
+      if (item.isWaste) {
+        state.beltItems.splice(i, 1);
+        continue; 
       }
-      state.beltItems.splice(i, 1);
-    }
-  }
-  if (changed && onUIUpdate) { onUIUpdate(gainedMatterTick, gainedScienceTick); }
-};
+
+      const hasStar = !item.isDye && Array.isArray(item.shape) && item.shape.some(q => q && q.type === 'star');
+      const sPoints = Math.floor((hasStar ?

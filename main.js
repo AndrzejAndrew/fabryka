@@ -6,7 +6,7 @@
   state.matter = state.matter || 200; state.matterPerMinute = state.matterPerMinute || 0; state.sciencePerMinute = state.sciencePerMinute || 0;
   state.prestigeCount = state.prestigeCount || 0; state.quantumCores = state.quantumCores || 0;
   
-  const BUILDING_COSTS = { belt: 1, miner: 15, cutter: 30, rotator: 20, merger: 40, painter: 50, mixer: 60, synthesizer: 100, generator: 150, splitter: 10, tunnel_in: 25, tunnel_out: 25 };
+ const BUILDING_COSTS = { belt: 1, miner: 15, cutter: 30, rotator: 20, merger: 40, painter: 50, mixer: 60, synthesizer: 100, generator: 150, splitter: 10, tunnel_in: 25, tunnel_out: 25, incinerator: 80, landfill: 20 };
   
   const TOOL_HINTS = {
     belt: "Kieruje przepływem. Przeciągnij LPM by budować linię.",
@@ -230,6 +230,7 @@
       if (nextCell.type === 'painter_sec') return item.isDye && !main.storedRight;
       if (nextCell.type === 'mixer_sec') return item.isDye && !main.storedRight;
       if (nextCell.type === 'synthesizer_sec') return !item.isDye && isFullShapeOfType(item.shape, 'square') && !main.storedRight;
+	  
       return false;
     }
     
@@ -247,6 +248,8 @@
     if (nextCell.type === 'splitter_sec') return false; // Wyjście
     
     if (nextCell.type === 'tunnel_in') return !nextCell.storedShape && !nextCell.storedDye;
+	if (nextCell.type === 'incinerator') return item.isWaste;
+    if (nextCell.type === 'landfill') return item.isWaste && (nextCell.storedWaste || 0) < 100;
     return false;
   }
 
