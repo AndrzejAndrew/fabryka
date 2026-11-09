@@ -41,7 +41,9 @@
   const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
   const goalCanvas = document.getElementById('goalCanvas'); const goalCtx = goalCanvas.getContext('2d');
   canvas.style.position = 'fixed'; canvas.style.top = '0'; canvas.style.left = '0';
-
+const uiContainer = document.getElementById('ui'); if (uiContainer) uiContainer.style.zIndex = '10';
+  const toolbarContainer = document.getElementById('toolbar'); if (toolbarContainer) toolbarContainer.style.zIndex = '10';
+  canvas.style.zIndex = '1'; // Gwarancja, że gra rysuje się pod interfejsem
   const levelBadge = document.getElementById('levelBadge'); const goalTitle = document.getElementById('goalTitle');
   const goalProgressFill = document.getElementById('goalProgressFill'); const goalProgressText = document.getElementById('goalProgressText');
   const scienceDisplay = document.getElementById('scienceDisplay'); const contextHint = document.getElementById('contextHint');
