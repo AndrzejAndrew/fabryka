@@ -1,8 +1,10 @@
 window.Factory = window.Factory || {};
 
 window.Factory.getSecondaryTile = function(type, gx, gy, rot) {
-  // Przecinarka i Monter zajmują dwa kafelki (główny i prawy względem obrotu)
-  if (type !== 'cutter' && type !== 'merger') return null;
+  // Teraz aż 6 maszyn to maszyny wielkopowierzchniowe (2x1)
+  const dualTileMachines = ['cutter', 'merger', 'painter', 'mixer', 'synthesizer', 'splitter'];
+  if (!dualTileMachines.includes(type)) return null;
+  
   const { DIRS } = window.Factory;
   const rightDir = DIRS[(rot + 1) % 4];
   return {

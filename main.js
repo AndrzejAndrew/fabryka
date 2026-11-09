@@ -14,9 +14,9 @@
     cutter: "Zajmuje 2 pola. Ostrze tnie napływający z dołu kształt na dwie połowy.",
     rotator: "Obraca kształt o 90° w prawo.",
     merger: "Zajmuje 2 pola. Doprowadź połówkę do LEWEGO i PRAWEGO wejścia. Wychodzi złączona.",
-    painter: "Doprowadź kształt + barwnik.",
-    mixer: "Doprowadź 2 barwniki, by je połączyć.",
-    synthesizer: "Połącz Pełne Koło i Pełny Kwadrat w Gwiazdę ⭐.",
+    painter: "Zajmuje 2 pola. Lewe: Kształt. Prawe: Barwnik.",
+    mixer: "Zajmuje 2 pola. Lewe: Barwnik 1. Prawe: Barwnik 2.",
+    synthesizer: "Zajmuje 2 pola. Lewe: Koło. Prawe: Kwadrat.",
     generator: "Spal Gwiazdę, by zasilić okoliczne kopalnie (2x prędkość).",
     splitter: "Rozdziela surowce 50/50 na wprost i w bok.",
     tunnel_in: "Omija rurą do 5 przeszkód.",
@@ -85,11 +85,15 @@
         <h3 style="color:#3fb950; margin-top:20px; margin-bottom:8px;">2. Zaawansowane Maszyny 2-polowe</h3>
         <div style="background:#0d1117; padding:16px; border-radius:8px; border:1px solid #30363d; margin-bottom:12px;">
           <h4 style="color:#e3b341; margin-top:0;">✂️ Przecinarka (Koszt: 30 🧱)</h4>
-          Zajmuje dwa kafelki obok siebie. Posiada wewnętrzne pionowe ostrze. Doprowadzasz taśmociąg do <b>głównego kafelka</b> (tego ze strzałką). Maszyna tnie go w pionie. Prawa połówka wyjedzie prawym portem, a lewa połówka wyjedzie lewym portem. By uzyskać ćwiartkę, użyj <b>Rotatora</b> na połówce i przetnij ją ponownie!
+          Zajmuje dwa kafelki obok siebie. Posiada wewnętrzne pionowe ostrze. Doprowadzasz taśmociąg do <b>głównego kafelka</b> (tego ze strzałką). Maszyna tnie go w pionie. Prawa połówka wyjedzie prawym portem, a lewa połówka wyjedzie lewym portem.
+        </div>
+        <div style="background:#0d1117; padding:16px; border-radius:8px; border:1px solid #30363d; margin-bottom:12px;">
+          <h4 style="color:#f85149; margin-top:0;">🧩 Monter (Koszt: 40 🧱)</h4>
+          Wymaga podłączenia dwóch taśmociągów od tyłu (jeden do lewego portu, drugi do prawego). Skleja dwie połówki.
         </div>
         <div style="background:#0d1117; padding:16px; border-radius:8px; border:1px solid #30363d;">
-          <h4 style="color:#f85149; margin-top:0;">🧩 Monter (Koszt: 40 🧱)</h4>
-          Odwrotność Przecinarki. Zajmuje dwa kafelki. Wymaga podłączenia <b>dwóch taśmociągów od tyłu</b> (jeden do lewego portu, drugi do prawego). Gdy obie połówki wjadą do środka, maszyna skleja je i wypluwa przez przedni środek.
+          <h4 style="color:#a371f7; margin-top:0;">⚙️ Maszyny Syntezy (Lakiernia, Mieszalnik, Syntezator)</h4>
+          Wszystkie zajmują po dwa pola. Zawsze podpinasz lewy strumień materiału (główny wlot) i prawy strumień (pomocniczy wlot na prawym kafelku). Jeśli podepniesz zły typ (np. kształt zamiast koloru do Lakierni), wejście się zablokuje!
         </div>
 
         <h3 style="color:#a371f7; margin-top:20px; margin-bottom:8px;">3. Skok Międzyplanetarny (Prestiż)</h3>
@@ -109,6 +113,53 @@
   const hubCostText = document.getElementById('hubCost'); const drillCostText = document.getElementById('drillCost');
   const toolButtons = document.querySelectorAll('.tool-btn');
   const newMapBtn = document.getElementById('newMapBtn');
+
+  // --- NAPRAWA PRZYCISKÓW ULEPSZEŃ ---
+  upgBeltBtn.addEventListener('click', () => {
+    const cost = Math.round(20 * Math.pow(1.7, state.beltSpeedLvl - 1));
+    if (state.sciencePoints >= cost) {
+      state.sciencePoints -= cost; 
+      state.beltSpeedLvl++;
+      state.beltSpeed = 2.5 + (state.beltSpeedLvl - 1) * 1.0;
+      updateUI(); saveGame();
+    }
+  });
+
+  upgMinerBtn.addEventListener('click', () => {
+    const cost = Math.round(25 * Math.pow(1.7, state.minerSpeedLvl - 1));
+    if (state.sciencePoints >= cost) {
+      state.sciencePoints -= cost; 
+      state.minerSpeedLvl++;
+      state.minerInterval = Math.max(2, 5 - (state.minerSpeedLvl - 1));
+      updateUI(); saveGame();
+    }
+  });
+
+  upgHubBtn.addEventListener('click', () => {
+    const cost = state.hubSize === 2 ? 50 : 120;
+    if (state.hubSize < 4 && state.sciencePoints >= cost) {
+      state.sciencePoints -= cost; 
+      state.hubSize++;
+      rebuildHub(); updateUI(); saveGame();
+    }
+  });
+
+  upgDrillBtn.addEventListener('click', () => {
+    if (!state.rockDrillUnlocked && state.sciencePoints >= 40) {
+      state.sciencePoints -= 40; 
+      state.rockDrillUnlocked = true;
+      updateUI(); saveGame();
+    }
+  });
+
+  const resetSaveBtn = document.getElementById('resetSaveBtn');
+  if (resetSaveBtn) {
+    resetSaveBtn.addEventListener('click', () => {
+      if (confirm("⚠️ UWAGA! Czy na pewno chcesz skasować cały zapis gry i zacząć od zera?")) {
+        clearGameSave();
+      }
+    });
+  }
 
   // Przycisk Skoku (Prestiż) w UI
   const prestigeActionBtn = document.createElement('button');
@@ -167,15 +218,34 @@
 
   function canEnterMachine(nextCell, item) {
     if (!nextCell) return false; if (nextCell.type === 'belt' || nextCell.type === 'hub') return true;
+    
     if (nextCell.type === 'cutter') return !item.isDye && !nextCell.storedShape;
     if (nextCell.type === 'rotator') return !item.isDye && !nextCell.storedShape;
-    if (nextCell.type === 'merger') return !item.isDye && !nextCell.storedLeft;
-    if (nextCell.type === 'merger_sec') { const main = state.grid.get(nextCell.partnerKey); return main && !item.isDye && !main.storedRight; }
-    if (nextCell.type === 'painter') { if (item.isDye) return !nextCell.storedDye; return !nextCell.storedShape; }
-    if (nextCell.type === 'mixer') { if (!item.isDye) return false; const dyes = nextCell.storedDyes || []; if (dyes.length === 0) return true; if (dyes.length === 1 && dyes[0] !== item.dyeColor) return true; return false; }
-    if (nextCell.type === 'synthesizer') { if (item.isDye) return false; if (isFullShapeOfType(item.shape, 'circle') && !nextCell.hasCircle) return true; if (isFullShapeOfType(item.shape, 'square') && !nextCell.hasSquare) return true; return false; }
+    
+    // Zabezpieczenia portów pomocniczych (prawy kafelek)
+    if (['merger_sec', 'painter_sec', 'mixer_sec', 'synthesizer_sec'].includes(nextCell.type)) {
+      const main = state.grid.get(nextCell.partnerKey);
+      if (!main) return false;
+      if (nextCell.type === 'merger_sec') return !item.isDye && !main.storedRight;
+      if (nextCell.type === 'painter_sec') return item.isDye && !main.storedRight;
+      if (nextCell.type === 'mixer_sec') return item.isDye && !main.storedRight;
+      if (nextCell.type === 'synthesizer_sec') return !item.isDye && isFullShapeOfType(item.shape, 'square') && !main.storedRight;
+      return false;
+    }
+    
+    // Zabezpieczenia portów głównych (lewy kafelek)
+    if (['merger', 'painter', 'mixer', 'synthesizer'].includes(nextCell.type)) {
+      if (nextCell.type === 'merger') return !item.isDye && !nextCell.storedLeft;
+      if (nextCell.type === 'painter') return !item.isDye && !nextCell.storedLeft;
+      if (nextCell.type === 'mixer') return item.isDye && !nextCell.storedLeft;
+      if (nextCell.type === 'synthesizer') return !item.isDye && isFullShapeOfType(item.shape, 'circle') && !nextCell.storedLeft;
+      return false;
+    }
+
     if (nextCell.type === 'generator') return isFullShapeOfType(item.shape, 'star') && (nextCell.fuelTimer || 0) < 100;
     if (nextCell.type === 'splitter') return !nextCell.storedItem;
+    if (nextCell.type === 'splitter_sec') return false; // Wyjście
+    
     if (nextCell.type === 'tunnel_in') return !nextCell.storedShape && !nextCell.storedDye;
     return false;
   }
@@ -241,13 +311,40 @@
       if (item.progress >= 1.0) {
         const cell = state.grid.get(`${item.curX},${item.curY}`);
         if (!cell) { state.beltItems.splice(i, 1); continue; }
+        
         if (cell.type === 'cutter' && !item.isDye && !cell.storedShape) { cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
         if (cell.type === 'rotator' && !item.isDye && !cell.storedShape) { cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
-        if (cell.type === 'merger' && !item.isDye && !cell.storedLeft) { cell.storedLeft = item.shape; state.beltItems.splice(i, 1); continue; }
-        if (cell.type === 'merger_sec' && !item.isDye) { const main = state.grid.get(cell.partnerKey); if (main && !main.storedRight) { main.storedRight = item.shape; state.beltItems.splice(i, 1); continue; } }
-        if (cell.type === 'painter') { if (item.isDye && !cell.storedDye) { cell.storedDye = item.dyeColor; state.beltItems.splice(i, 1); continue; } else if (!item.isDye && !cell.storedShape) { cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; } }
-        if (cell.type === 'mixer' && item.isDye) { cell.storedDyes = cell.storedDyes || []; if (cell.storedDyes.length === 0 || (cell.storedDyes.length === 1 && cell.storedDyes[0] !== item.dyeColor)) { cell.storedDyes.push(item.dyeColor); state.beltItems.splice(i, 1); continue; } }
-        if (cell.type === 'synthesizer' && !item.isDye) { if (isFullShapeOfType(item.shape, 'circle') && !cell.hasCircle) { cell.hasCircle = true; cell.circleColor = item.shape[0].color; state.beltItems.splice(i, 1); continue; } if (isFullShapeOfType(item.shape, 'square') && !cell.hasSquare) { cell.hasSquare = true; cell.squareColor = item.shape[0].color; state.beltItems.splice(i, 1); continue; } }
+        
+        // --- MASZYNY 2-WEJŚCIOWE (MONTER, LAKIERNIA, MIESZALNIK, SYNTEZATOR) ---
+        // Lewy Wlot (Główny kafelek)
+        if (['merger', 'painter', 'mixer', 'synthesizer'].includes(cell.type)) {
+          if (!cell.storedLeft) {
+            if (cell.type === 'mixer' && item.isDye) cell.storedLeft = item.dyeColor;
+            else if (cell.type === 'painter' && !item.isDye) cell.storedLeft = item.shape;
+            else if (cell.type === 'synthesizer' && !item.isDye && isFullShapeOfType(item.shape, 'circle')) cell.storedLeft = item.shape;
+            else if (cell.type === 'merger' && !item.isDye) cell.storedLeft = item.shape;
+            else continue; // Niewłaściwy przedmiot
+            
+            state.beltItems.splice(i, 1); continue;
+          }
+        }
+        
+        // Prawy Wlot (Kafelek pomocniczy _sec)
+        if (['merger_sec', 'painter_sec', 'mixer_sec', 'synthesizer_sec'].includes(cell.type)) {
+          const main = state.grid.get(cell.partnerKey);
+          if (main && !main.storedRight) {
+            const baseType = main.type;
+            if (baseType === 'mixer' && item.isDye) main.storedRight = item.dyeColor;
+            else if (baseType === 'painter' && item.isDye) main.storedRight = item.dyeColor; 
+            else if (baseType === 'synthesizer' && !item.isDye && isFullShapeOfType(item.shape, 'square')) main.storedRight = item.shape;
+            else if (baseType === 'merger' && !item.isDye) main.storedRight = item.shape;
+            else continue; // Niewłaściwy przedmiot
+            
+            state.beltItems.splice(i, 1); continue;
+          }
+        }
+
+        // Generator, Splitter i Tunele
         if (cell.type === 'generator' && !item.isDye) { if (isFullShapeOfType(item.shape, 'star')) { cell.fuelTimer = 150; state.beltItems.splice(i, 1); continue; } }
         if (cell.type === 'splitter' && !cell.storedItem) { cell.storedItem = { isDye: item.isDye, dyeColor: item.dyeColor, shape: item.shape }; state.beltItems.splice(i, 1); continue; }
         if (cell.type === 'tunnel_in' && !cell.storedShape && !cell.storedDye) { if (item.isDye) cell.storedDye = item.dyeColor; else cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
