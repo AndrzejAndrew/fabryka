@@ -25,7 +25,11 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     if (b.type === 'miner') {
       const patch = state.patches.get(`${b.x},${b.y}`);
       if (!patch) return;
-      b.timer = (b.timer || 0) + (b.isPowered ? 2 : 1);
+      
+      // BONUS Z PRESTIŻU: +25% prędkości wydobycia za każdy Rdzeń Kwantowy
+      const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
+      
+      b.timer = (b.timer || 0) + ((b.isPowered ? 2 : 1) * prestigeMult);
       if (b.timer >= state.minerInterval) {
         b.timer = 0;
         const dir = DIRS[b.rot];
@@ -171,8 +175,11 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     }
   });
 
-  let changed = false;
+ let changed = false;
   let gainedMatterTick = 0; let gainedScienceTick = 0;
+  
+  // BONUS Z PRESTIŻU: +25% zysków z każdego przedmiotu
+  const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
 
   for (let i = state.beltItems.length - 1; i >= 0; i--) {
     const item = state.beltItems[i];
@@ -180,7 +187,9 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
 
     if (cell && cell.type === 'hub') {
       const hasStar = !item.isDye && Array.isArray(item.shape) && item.shape.some(q => q && q.type === 'star');
-      const sPoints = hasStar ? 5 : 1; const mPoints = hasStar ? 10 : 2;
+      const sPoints = Math.floor((hasStar ? 5 : 1) * prestigeMult); 
+      const mPoints = Math.floor((hasStar ? 10 : 2) * prestigeMult);
+      
       gainedScienceTick += sPoints; gainedMatterTick += mPoints; changed = true;
 
       if (!item.isDye) {

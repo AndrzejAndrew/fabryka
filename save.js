@@ -19,6 +19,7 @@ window.Factory.saveGame = function() {
       beltSpeedLvl: state.beltSpeedLvl, minerSpeedLvl: state.minerSpeedLvl,
       hubSize: state.hubSize || 2, rockDrillUnlocked: !!state.rockDrillUnlocked,
       currentLvlIndex: state.currentLvlIndex, currentLvlProgress: state.currentLvlProgress,
+      prestigeCount: state.prestigeCount || 0, quantumCores: state.quantumCores || 0,
       patches: serializedPatches, rocks: serializedRocks, grid: serializedGrid
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -46,6 +47,8 @@ window.Factory.loadGame = function() {
     state.minerInterval = Math.max(2, 5 - (state.minerSpeedLvl - 1));
     state.mapSeed = Number(data.mapSeed) || 123456;
     state.lastSaveTime = Number(data.lastSaveTime) || Date.now();
+    state.prestigeCount = Number(data.prestigeCount) || 0;
+    state.quantumCores = Number(data.quantumCores) || 0;
 
     if (isLegacy || !Array.isArray(data.patches) || data.patches.length === 0) { initInitialWorld(state.mapSeed); } else {
       state.patches.clear(); data.patches.forEach(p => state.patches.set(p.key, { kind: p.kind, subType: p.subType }));
