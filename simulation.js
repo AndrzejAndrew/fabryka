@@ -9,11 +9,10 @@ window.Factory.isFullShapeOfType = function(shape, type) { if (!Array.isArray(sh
 window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
   const { state, DIRS, LEVELS, COLOR_MIXES, POWER_RADIUS, makeQuad } = window.Factory;
 
-  // --- KROK 1: SIEĆ ENERGETYCZNA (GENERATORY I SPALARNIE) ---
+  // --- KROK 1: SIEĆ ENERGETYCZNA ---
   const activeGenerators = [];
   state.grid.forEach(b => {
     b.isPowered = false;
-    // Spalarnia (incinerator) i Generator ładują okolicę prądem
     if (b.type === 'generator' || b.type === 'incinerator') { 
       if ((b.fuelTimer || 0) > 0) { 
         b.fuelTimer--; 
@@ -30,7 +29,6 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
 
   // --- KROK 2: LOGIKA MASZYN ---
   state.grid.forEach(b => {
-    
     if (b.type === 'miner') {
       const patch = state.patches.get(`${b.x},${b.y}`);
       if (!patch) return;
@@ -109,23 +107,20 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
-    // --- NOWA LAKIERNIA 2x1 Z ODPADAMI ---
     if (b.type === 'painter' && b.storedLeft && b.storedRight) {
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
       const outMain = { x: b.x + fwd.x, y: b.y + fwd.y }; 
-      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; // Wylot żużla
+      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; 
       
       const targetMain = state.grid.get(`${outMain.x},${outMain.y}`);
       const targetSec = state.grid.get(`${outSec.x},${outSec.y}`);
       const occMain = state.beltItems.some(i => i.curX === outMain.x && i.curY === outMain.y);
       const occSec = state.beltItems.some(i => i.curX === outSec.x && i.curY === outSec.y);
       
-      // Lakiernia działa tylko jeśli może wyrzucić kształt ORAZ odpad
       if (targetMain && targetSec && !occMain && !occSec) {
         const painted = b.storedLeft.map(quad => quad ? { type: quad.type, color: b.storedRight } : null);
-        state.beltItems.push({ curX: outMain.x, curY: outMain.y, isDye: false, isWaste: false, shape: painted, progress: 0 }); // Główny produkt
-        state.beltItems.push({ curX: outSec.x, curY: outSec.y, isDye: false, isWaste: true, shape: null, progress: 0 }); // Żużel
-        
+        state.beltItems.push({ curX: outMain.x, curY: outMain.y, isDye: false, isWaste: false, shape: painted, progress: 0 });
+        state.beltItems.push({ curX: outSec.x, curY: outSec.y, isDye: false, isWaste: true, shape: null, progress: 0 });
         b.storedLeft = null; b.storedRight = null;
       }
     }
@@ -142,11 +137,10 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
-    // --- NOWY SYNTEZATOR 2x1 Z ODPADAMI ---
     if (b.type === 'synthesizer' && b.storedLeft && b.storedRight) {
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
       const outMain = { x: b.x + fwd.x, y: b.y + fwd.y }; 
-      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; // Wylot żużla
+      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; 
       
       const targetMain = state.grid.get(`${outMain.x},${outMain.y}`);
       const targetSec = state.grid.get(`${outSec.x},${outSec.y}`);
@@ -159,8 +153,8 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
         const starColor = circleColor !== 'uncolored' ? circleColor : (squareColor !== 'uncolored' ? squareColor : 'uncolored');
         
         const q = makeQuad('star', starColor);
-        state.beltItems.push({ curX: outMain.x, curY: outMain.y, isDye: false, isWaste: false, shape: [{ ...q }, { ...q }, { ...q }, { ...q }], progress: 0 }); // Gwiazda
-        state.beltItems.push({ curX: outSec.x, curY: outSec.y, isDye: false, isWaste: true, shape: null, progress: 0 }); // Żużel
+        state.beltItems.push({ curX: outMain.x, curY: outMain.y, isDye: false, isWaste: false, shape: [{ ...q }, { ...q }, { ...q }, { ...q }], progress: 0 }); 
+        state.beltItems.push({ curX: outSec.x, curY: outSec.y, isDye: false, isWaste: true, shape: null, progress: 0 }); 
         
         b.storedLeft = null; b.storedRight = null;
       }
@@ -219,11 +213,32 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     const cell = state.grid.get(`${item.curX},${item.curY}`);
 
     if (cell && cell.type === 'hub') {
-      // Hub nie daje punktów za śmieci!
       if (item.isWaste) {
         state.beltItems.splice(i, 1);
         continue; 
       }
 
       const hasStar = !item.isDye && Array.isArray(item.shape) && item.shape.some(q => q && q.type === 'star');
-      const sPoints = Math.floor((hasStar ?
+      const sPoints = Math.floor((hasStar ? 5 : 1) * prestigeMult); 
+      const mPoints = Math.floor((hasStar ? 10 : 2) * prestigeMult);
+      
+      gainedScienceTick += sPoints; gainedMatterTick += mPoints; changed = true;
+
+      if (!item.isDye) {
+        const curLevel = LEVELS[state.currentLvlIndex];
+        if (curLevel && shapesEqual(item.shape, curLevel.targetShape)) {
+          state.currentLvlProgress++;
+          if (state.currentLvlProgress >= curLevel.requiredCount) {
+            const finishedLevel = curLevel;
+            if (state.currentLvlIndex < LEVELS.length - 1) {
+              state.currentLvlIndex++; state.currentLvlProgress = 0;
+              if (onLevelUp) onLevelUp(finishedLevel, LEVELS[state.currentLvlIndex]);
+            }
+          }
+        }
+      }
+      state.beltItems.splice(i, 1);
+    }
+  }
+  if (changed && onUIUpdate) { onUIUpdate(gainedMatterTick, gainedScienceTick); }
+};
