@@ -11,64 +11,141 @@
     <!-- Główny Cel Poziomu -->
     <div class="panel">
       <div class="title">
-        <span>Główny Poziom Bazy</span>
+        <span>Główny Cel Rdzenia</span>
         <span id="levelBadge">POZIOM 1</span>
       </div>
       <div class="goal-box">
         <div class="goal-preview">
-          <canvas id="goalCanvas" width="40" height="40"></canvas>
+          <canvas id="goalCanvas" width="42" height="42"></canvas>
         </div>
         <div class="goal-info">
           <div id="goalTitle" class="goal-name">Dostarcz Koła</div>
           <div class="progress-bar">
             <div id="goalProgressFill" class="progress-fill"></div>
           </div>
-          <div id="goalProgressText" class="progress-text">0 / 20</div>
+          <div id="goalProgressText" class="progress-text">0 / 15</div>
         </div>
       </div>
     </div>
 
-    <!-- Punkty Badań i Ulepszenia -->
+    <!-- Punkty Badań i Rozbudowa -->
     <div class="panel">
       <div class="title">
-        <span>Punkty Badawcze</span>
-        <button id="resetSaveBtn" class="danger-btn" title="Resetuje cały zapis gry">Zresetuj zapis</button>
+        <span>Inżynieria i Rozbudowa</span>
+        <div>
+          <button id="newMapBtn" class="link-btn" title="Generuje nową losową mapę">🎲 Nowa mapa</button>
+          <button id="resetSaveBtn" class="danger-btn" title="Resetuje cały zapis gry">Reset</button>
+        </div>
       </div>
       <div id="scienceDisplay" class="science-score">0 ⚙</div>
       <div class="upgrade-list">
         <button id="upgBelt" class="upgrade-btn">
-          <span>Prędkość Taśm <small id="beltLvl">(Poz. 1)</small></span>
-          <span id="beltCost">25 ⚙</span>
+          <span>⚡ Przenośniki <small id="beltLvl">(Poz. 1)</small></span>
+          <span id="beltCost">20 ⚙</span>
         </button>
         <button id="upgMiner" class="upgrade-btn">
-          <span>Szybkość Kopalń <small id="minerLvl">(Poz. 1)</small></span>
-          <span id="minerCost">30 ⚙</span>
+          <span>⛏️ Ekstraktory <small id="minerLvl">(Poz. 1)</small></span>
+          <span id="minerCost">25 ⚙</span>
+        </button>
+        <button id="upgHub" class="upgrade-btn">
+          <span>🏰 Rozbudowa Bazy <small id="hubLvl">(2x2)</small></span>
+          <span id="hubCost">50 ⚙</span>
+        </button>
+        <button id="upgDrill" class="upgrade-btn">
+          <span>🧨 Kruszenie Skał <small id="drillLvl">(Zablok.)</small></span>
+          <span id="drillCost">40 ⚙</span>
         </button>
       </div>
     </div>
   </div>
 
+  <!-- Przycisk otwierający samouczek -->
+  <button id="helpBtn" class="top-right-btn">📖 Instrukcja i Schematy</button>
+
+  <!-- Okno Samouczka / Tutoriala -->
+  <div id="tutorialModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>📖 Podręcznik Inżyniera Fabryki</h2>
+        <button id="closeHelpBtn" class="close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="tut-section">
+          <h3>1. Wydobycie i Rdzeń Bazy 🏰</h3>
+          <p>Stawiaj <strong>Ekstraktory (⛏️)</strong> na złożach (Koła, Kwadraty lub Barwniki RGB). Połącz je <strong>Przenośnikiem (➡️)</strong> z fioletowym Rdzeniem w centrum mapy. Rdzeń możesz rozbudować do 4x4!</p>
+        </div>
+        <div class="tut-section">
+          <h3>2. Przecinarka (✂️), Rotator (🔄) i Monter (🧩)</h3>
+          <p><strong>Przecinarka</strong> rozcina kształt pionowo: <strong>na wprost</strong> wyrzuca <strong>Prawą połówkę</strong>, a <strong>w lewy bok Lewą połówkę</strong>. <strong>Rotator</strong> obraca kształt o 90° w prawo, a <strong>Monter</strong> skleja dwie połówki w jeden kształt.</p>
+        </div>
+        <div class="tut-section">
+          <h3>3. Syntezator (⚗️) i Gwiazdy Energetyczne ⭐</h3>
+          <p>Doprowadź do <strong>Syntezatora</strong> 1x Pełne Koło oraz 1x Pełny Kwadrat. Maszyna stworzy z nich nowy materiał wyższego rzędu: <strong>Gwiazdę</strong>! Gwiazda daje aż <strong>5 ⚙</strong> w Bazie, możesz ją ciąć, malować i łączyć z innymi kształtami.</p>
+        </div>
+        <div class="tut-section">
+          <h3>4. Generator Prądu (⚡) i Rozdzielacz (🔀)</h3>
+          <p>Doprowadź Gwiazdy do <strong>Generatora Prądu</strong>. Każda Gwiazda zasila go na 15 sekund, tworząc wokół pole energetyczne, które <strong>przyspiesza Ekstraktory 2-krotnie</strong>! Użyj <strong>Rozdzielacza (🔀)</strong>, aby dzielić strumień 50/50 (na wprost i w prawo).</p>
+        </div>
+        <div class="tut-section">
+          <h3>5. Barwniki (🧪/🎨) oraz Kruszenie Skał 🪨</h3>
+          <p>W <strong>Mieszalniku</strong> połączysz barwniki RGB w nowe kolory, a w <strong>Lakierni</strong> pomalujesz kształty. Odblokuj <strong>Kruszenie Skał (🧨)</strong> i użyj <strong>Rozbiórki (💥 [X])</strong>, aby przebijać się przez góry.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pasek narzędzi -->
   <div id="toolbar">
-    <button class="tool-btn active" data-tool="belt" id="tool-belt">Taśma <span class="shortcut">[1]</span></button>
-    <button class="tool-btn" data-tool="miner" id="tool-miner">Kopalnia <span class="shortcut">[2]</span></button>
-    <button class="tool-btn" data-tool="cutter" id="tool-cutter" disabled>Krajalnica <span class="shortcut">[3] 🔒</span></button>
-    <button class="tool-btn" data-tool="rotator" id="tool-rotator" disabled>Obracarka <span class="shortcut">[4] 🔒</span></button>
-    <button class="tool-btn" data-tool="merger" id="tool-merger" disabled>Łączarka <span class="shortcut">[5] 🔒</span></button>
-    <button class="tool-btn" data-tool="painter" id="tool-painter" disabled>Malarz <span class="shortcut">[6] 🔒</span></button>
-    <button class="tool-btn" data-tool="mixer" id="tool-mixer" disabled>Mikser <span class="shortcut">[7] 🔒</span></button>
-    <button class="tool-btn" data-tool="tunnel_in" id="tool-tunnel_in" disabled>Tunel In <span class="shortcut">[8] 🔒</span></button>
-    <button class="tool-btn" data-tool="tunnel_out" id="tool-tunnel_out" disabled>Tunel Out <span class="shortcut">[9] 🔒</span></button>
-    <button class="tool-btn" data-tool="delete" id="tool-delete">Kasownik <span class="shortcut">[0]</span></button>
+    <button class="tool-btn active" data-tool="belt" id="tool-belt">
+      <span class="icon">➡️</span><span>Przenośnik</span><span class="shortcut">[1]</span>
+    </button>
+    <button class="tool-btn" data-tool="miner" id="tool-miner">
+      <span class="icon">⛏️</span><span>Ekstraktor</span><span class="shortcut">[2]</span>
+    </button>
+    <button class="tool-btn" data-tool="cutter" id="tool-cutter" disabled>
+      <span class="icon">✂️</span><span>Przecinarka</span><span class="shortcut">[3] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="rotator" id="tool-rotator" disabled>
+      <span class="icon">🔄</span><span>Rotator</span><span class="shortcut">[4] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="merger" id="tool-merger" disabled>
+      <span class="icon">🧩</span><span>Monter</span><span class="shortcut">[5] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="painter" id="tool-painter" disabled>
+      <span class="icon">🎨</span><span>Lakiernia</span><span class="shortcut">[6] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="mixer" id="tool-mixer" disabled>
+      <span class="icon">🧪</span><span>Mieszalnik</span><span class="shortcut">[7] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="synthesizer" id="tool-synthesizer" disabled>
+      <span class="icon">⚗️</span><span>Syntezator</span><span class="shortcut">[8] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="generator" id="tool-generator" disabled>
+      <span class="icon">⚡</span><span>Generator</span><span class="shortcut">[9] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="splitter" id="tool-splitter" disabled>
+      <span class="icon">🔀</span><span>Rozdzielacz</span><span class="shortcut">[0] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="tunnel_in" id="tool-tunnel_in" disabled>
+      <span class="icon">🚇</span><span>Tunel We</span><span class="shortcut">[Q] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="tunnel_out" id="tool-tunnel_out" disabled>
+      <span class="icon">🛤️</span><span>Tunel Wy</span><span class="shortcut">[E] 🔒</span>
+    </button>
+    <button class="tool-btn" data-tool="delete" id="tool-delete">
+      <span class="icon">💥</span><span>Rozbiórka</span><span class="shortcut">[X]</span>
+    </button>
   </div>
 
   <div id="hints" class="panel">
-    <strong>Krajalnica:</strong> Wlot z tyłu, prawa połówka na wprost, lewa w bok<br>
-    <strong>Obrót:</strong> Klawisz <kbd>R</kbd> | <strong>Kamera:</strong> <kbd>PPM</kbd> / <kbd>ŚPM</kbd> | <strong>Zoom:</strong> Kółko
+    <div id="contextHint"><strong>Przenośnik [1]:</strong> Przeciągnij LPM, aby ułożyć taśmociąg.</div>
+    <div style="margin-top:4px; font-size:11px; color:#6e7681;">
+      Obrót: <kbd>R</kbd> | Rozbiórka: <kbd>X</kbd> | Kamera: <kbd>PPM</kbd>/<kbd>ŚPM</kbd>
+    </div>
   </div>
 
   <canvas id="gameCanvas"></canvas>
 
-  <!-- Klasyczne ładowanie skryptów po kolei - brak problemów z CORS i 404 w podfolderach -->
   <script defer src="./config.js"></script>
   <script defer src="./state.js"></script>
   <script defer src="./storage.js"></script>

@@ -22,16 +22,43 @@ function shapesEqual(a, b) {
   return true;
 }
 
+window.Factory.isFullShapeOfType = function(shape, type) {
+  if (!Array.isArray(shape)) return false;
+  return shape.every(q => q && q.type === type);
+};
+
 window.Factory.runSimulationTick = function(onUIUpdate) {
-  const { state, DIRS, LEVELS, COLOR_MIXES, makeQuad } = window.Factory;
+  const { state, DIRS, LEVELS, COLOR_MIXES, POWER_RADIUS, makeQuad } = window.Factory;
+
+  // KROK 0: Aktualizacja Generatorów Prądu i sieci zasilania
+  const activeGenerators = [];
+  state.grid.forEach(b => {
+    b.isPowered = false;
+    if (b.type === 'generator') {
+      if ((b.fuelTimer || 0) > 0) {
+        b.fuelTimer--;
+        activeGenerators.push(b);
+      }
+    }
+  });
 
   state.grid.forEach(b => {
-    // 1. Kopalnie
+    for (const gen of activeGenerators) {
+      const dist = Math.hypot(b.x - gen.x, b.y - gen.y);
+      if (dist <= POWER_RADIUS) {
+        b.isPowered = true;
+        break;
+      }
+    }
+  });
+
+  state.grid.forEach(b => {
+    // 1. Ekstraktor (Miner) - działa 2x szybciej pod prądem
     if (b.type === 'miner') {
       const patch = state.patches.get(`${b.x},${b.y}`);
       if (!patch) return;
 
-      b.timer = (b.timer || 0) + 1;
+      b.timer = (b.timer || 0) + (b.isPowered ? 2 : 1);
       if (b.timer >= state.minerInterval) {
         b.timer = 0;
         const dir = DIRS[b.rot];
@@ -65,7 +92,7 @@ window.Factory.runSimulationTick = function(onUIUpdate) {
       }
     }
 
-    // 2. Krajalnica (Cutter): Prawa połówka na wprost, lewa połówka w lewy bok
+    // 2. Przecinarka (Cutter)
     if (b.type === 'cutter' && b.storedShape) {
       const fwd = DIRS[b.rot];
       const left = DIRS[(b.rot + 3) % 4];
@@ -85,21 +112,23 @@ window.Factory.runSimulationTick = function(onUIUpdate) {
       const halfRight = [src[0], src[1], null, null];
       const halfLeft = [null, null, src[2], src[3]];
 
-      // Jeśli oba wyjścia są podpięte, wypluj obie połówki; jeśli tylko jedno, wypluj dostępną
+      const canRight = halfRight[0] || halfRight[1];
+      const canLeft = halfLeft[2] || halfLeft[3];
+
       if (rightCell && leftCell && !rightBlocked && !leftBlocked) {
-        state.beltItems.push({ curX: outRightX, curY: outRightY, isDye: false, shape: halfRight, progress: 0 });
-        state.beltItems.push({ curX: outLeftX, curY: outLeftY, isDye: false, shape: halfLeft, progress: 0 });
+        if (canRight) state.beltItems.push({ curX: outRightX, curY: outRightY, isDye: false, shape: halfRight, progress: 0 });
+        if (canLeft) state.beltItems.push({ curX: outLeftX, curY: outLeftY, isDye: false, shape: halfLeft, progress: 0 });
         b.storedShape = null;
       } else if (rightCell && !leftCell && !rightBlocked) {
-        state.beltItems.push({ curX: outRightX, curY: outRightY, isDye: false, shape: halfRight, progress: 0 });
+        if (canRight) state.beltItems.push({ curX: outRightX, curY: outRightY, isDye: false, shape: halfRight, progress: 0 });
         b.storedShape = null;
       } else if (leftCell && !rightCell && !leftBlocked) {
-        state.beltItems.push({ curX: outLeftX, curY: outLeftY, isDye: false, shape: halfLeft, progress: 0 });
+        if (canLeft) state.beltItems.push({ curX: outLeftX, curY: outLeftY, isDye: false, shape: halfLeft, progress: 0 });
         b.storedShape = null;
       }
     }
 
-    // 3. Obracarka (Rotator)
+    // 3. Rotator
     if (b.type === 'rotator' && b.storedShape) {
       const fwd = DIRS[b.rot];
       const tx = b.x + fwd.x;
@@ -113,7 +142,7 @@ window.Factory.runSimulationTick = function(onUIUpdate) {
       }
     }
 
-    // 4. Łączarka (Merger)
+    // 4. Monter (Merger)
     if (b.type === 'merger' && b.storedInputs && b.storedInputs.length >= 2) {
       const fwd = DIRS[b.rot];
       const tx = b.x + fwd.x;
@@ -128,7 +157,7 @@ window.Factory.runSimulationTick = function(onUIUpdate) {
       }
     }
 
-    // 5. Malarz (Painter)
+    // 5. Lakiernia (Painter)
     if (b.type === 'painter' && b.storedShape && b.storedDye) {
       const fwd = DIRS[b.rot];
       const tx = b.x + fwd.x;
@@ -162,7 +191,64 @@ window.Factory.runSimulationTick = function(onUIUpdate) {
       }
     }
 
-    // 7. Tunele
+    // 7. Syntezator (Koło + Kwadrat = Gwiazda)
+    if (b.type === 'synthesizer' && b.hasCircle && b.hasSquare) {
+      const fwd = DIRS[b.rot];
+      const tx = b.x + fwd.x;
+      const ty = b.y + fwd.y;
+      const target = state.grid.get(`${tx},${ty}`);
+      const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
+
+      if (target && !occ) {
+        const starColor = b.circleColor !== 'uncolored' ? b.circleColor : (b.squareColor || 'uncolored');
+        const q = makeQuad('star', starColor);
+        state.beltItems.push({
+          curX: tx,
+          curY: ty,
+          isDye: false,
+          shape: [{ ...q }, { ...q }, { ...q }, { ...q }],
+          progress: 0
+        });
+        b.hasCircle = false;
+        b.hasSquare = false;
+      }
+    }
+
+    // 8. Rozdzielacz (Splitter): naprzemiennie prosto i w prawo
+    if (b.type === 'splitter' && b.storedItem) {
+      const fwd = DIRS[b.rot];
+      const right = DIRS[(b.rot + 1) % 4];
+
+      const targets = [
+        { x: b.x + fwd.x, y: b.y + fwd.y },
+        { x: b.x + right.x, y: b.y + right.y }
+      ];
+
+      b.splitToggle = (b.splitToggle || 0) % 2;
+      const firstIdx = b.splitToggle;
+      const secondIdx = 1 - firstIdx;
+
+      for (const idx of [firstIdx, secondIdx]) {
+        const tPos = targets[idx];
+        const tCell = state.grid.get(`${tPos.x},${tPos.y}`);
+        const occ = state.beltItems.some(i => i.curX === tPos.x && i.curY === tPos.y);
+        if (tCell && !occ) {
+          state.beltItems.push({
+            curX: tPos.x,
+            curY: tPos.y,
+            isDye: b.storedItem.isDye,
+            dyeColor: b.storedItem.dyeColor,
+            shape: b.storedItem.shape,
+            progress: 0
+          });
+          b.storedItem = null;
+          b.splitToggle = 1 - idx;
+          break;
+        }
+      }
+    }
+
+    // 9. Tunele
     if (b.type === 'tunnel_in' && (b.storedShape || b.storedDye)) {
       const dir = DIRS[b.rot];
       for (let dist = 1; dist <= 5; dist++) {
@@ -191,14 +277,15 @@ window.Factory.runSimulationTick = function(onUIUpdate) {
     }
   });
 
-  // Hub: odbiór przedmiotów
+  // Rdzeń Bazy (Hub): Gwiazdy dają 5 ⚙, zwykłe elementy 1 ⚙
   let changed = false;
   for (let i = state.beltItems.length - 1; i >= 0; i--) {
     const item = state.beltItems[i];
     const cell = state.grid.get(`${item.curX},${item.curY}`);
 
     if (cell && cell.type === 'hub') {
-      state.sciencePoints += 1;
+      const hasStar = !item.isDye && Array.isArray(item.shape) && item.shape.some(q => q && q.type === 'star');
+      state.sciencePoints += hasStar ? 5 : 1;
       changed = true;
 
       if (!item.isDye) {

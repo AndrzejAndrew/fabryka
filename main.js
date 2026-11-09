@@ -1,10 +1,10 @@
 (function() {
   const {
-    GRID_SIZE, DIRS, LEVELS, COLOR_MAP,
-    state, initInitialWorld,
+    GRID_SIZE, DIRS, LEVELS, COLOR_MAP, TOOL_HINTS, POWER_RADIUS,
+    state, initInitialWorld, rebuildHub,
     saveGame, loadGame, clearGameSave,
-    runSimulationTick,
-    drawShape, drawDyeDrop, drawBuilding,
+    runSimulationTick, isFullShapeOfType,
+    drawShape, drawDyeDrop, drawRock, drawBuilding,
     setupInput
   } = window.Factory;
 
@@ -18,14 +18,29 @@
   const goalProgressFill = document.getElementById('goalProgressFill');
   const goalProgressText = document.getElementById('goalProgressText');
   const scienceDisplay = document.getElementById('scienceDisplay');
+  const contextHint = document.getElementById('contextHint');
+
   const resetSaveBtn = document.getElementById('resetSaveBtn');
+  const newMapBtn = document.getElementById('newMapBtn');
+  const helpBtn = document.getElementById('helpBtn');
+  const closeHelpBtn = document.getElementById('closeHelpBtn');
+  const tutorialModal = document.getElementById('tutorialModal');
 
   const upgBeltBtn = document.getElementById('upgBelt');
   const upgMinerBtn = document.getElementById('upgMiner');
+  const upgHubBtn = document.getElementById('upgHub');
+  const upgDrillBtn = document.getElementById('upgDrill');
+
   const beltLvlText = document.getElementById('beltLvl');
   const minerLvlText = document.getElementById('minerLvl');
+  const hubLvlText = document.getElementById('hubLvl');
+  const drillLvlText = document.getElementById('drillLvl');
+
   const beltCostText = document.getElementById('beltCost');
   const minerCostText = document.getElementById('minerCost');
+  const hubCostText = document.getElementById('hubCost');
+  const drillCostText = document.getElementById('drillCost');
+
   const toolButtons = document.querySelectorAll('.tool-btn');
 
   function resize() {
@@ -38,8 +53,20 @@
   state.camera.x = canvas.width / 2;
   state.camera.y = canvas.height / 2;
 
-  initInitialWorld();
-  loadGame();
+  if (!loadGame()) {
+    initInitialWorld();
+  }
+
+  helpBtn.addEventListener('click', () => { tutorialModal.style.display = 'flex'; });
+  closeHelpBtn.addEventListener('click', () => { tutorialModal.style.display = 'none'; });
+
+  newMapBtn.addEventListener('click', () => {
+    if (confirm("Wygenerować nową proceduralną mapę? Obecne budynki zostaną usunięte (poziom i badania zostaną zachowane).")) {
+      initInitialWorld(Math.floor(Math.random() * 1000000));
+      saveGame();
+      updateUI();
+    }
+  });
 
   function canEnterMachine(nextCell, item) {
     if (!nextCell) return false;
@@ -61,6 +88,19 @@
       if (dyes.length === 1 && dyes[0] !== item.dyeColor) return true;
       return false;
     }
+    if (nextCell.type === 'synthesizer') {
+      if (item.isDye) return false;
+      if (isFullShapeOfType(item.shape, 'circle') && !nextCell.hasCircle) return true;
+      if (isFullShapeOfType(item.shape, 'square') && !nextCell.hasSquare) return true;
+      return false;
+    }
+    if (nextCell.type === 'generator') {
+      if (item.isDye) return false;
+      return isFullShapeOfType(item.shape, 'star') && (nextCell.fuelTimer || 0) < 100;
+    }
+    if (nextCell.type === 'splitter') {
+      return !nextCell.storedItem;
+    }
     if (nextCell.type === 'tunnel_in') {
       return !nextCell.storedShape && !nextCell.storedDye;
     }
@@ -76,10 +116,9 @@
     const pct = Math.min(100, (state.currentLvlProgress / current.requiredCount) * 100);
     goalProgressFill.style.width = `${pct}%`;
 
-    goalCtx.clearRect(0, 0, 40, 40);
-    drawShape(goalCtx, 20, 20, current.targetShape, 26);
+    goalCtx.clearRect(0, 0, 42, 42);
+    drawShape(goalCtx, 21, 21, current.targetShape, 26);
 
-    // Odblokuj maszyny z ukończonych poziomów
     LEVELS.forEach((lvl, idx) => {
       if (idx < state.currentLvlIndex) {
         lvl.unlocks.forEach(t => {
@@ -94,15 +133,37 @@
     });
 
     scienceDisplay.innerText = `${state.sciencePoints} ⚙`;
-    const bCost = Math.round(25 * Math.pow(1.8, state.beltSpeedLvl - 1));
+
+    const bCost = Math.round(20 * Math.pow(1.7, state.beltSpeedLvl - 1));
     beltCostText.innerText = `${bCost} ⚙`;
     beltLvlText.innerText = `(Poz. ${state.beltSpeedLvl})`;
     upgBeltBtn.disabled = state.sciencePoints < bCost;
 
-    const mCost = Math.round(30 * Math.pow(1.8, state.minerSpeedLvl - 1));
+    const mCost = Math.round(25 * Math.pow(1.7, state.minerSpeedLvl - 1));
     minerCostText.innerText = `${mCost} ⚙`;
     minerLvlText.innerText = `(Poz. ${state.minerSpeedLvl})`;
     upgMinerBtn.disabled = state.sciencePoints < mCost;
+
+    if (state.hubSize >= 4) {
+      hubLvlText.innerText = `(4x4 MAX)`;
+      hubCostText.innerText = `MAX`;
+      upgHubBtn.disabled = true;
+    } else {
+      const hCost = state.hubSize === 2 ? 50 : 120;
+      hubLvlText.innerText = `(${state.hubSize}x${state.hubSize} -> ${state.hubSize+1}x${state.hubSize+1})`;
+      hubCostText.innerText = `${hCost} ⚙`;
+      upgHubBtn.disabled = state.sciencePoints < hCost;
+    }
+
+    if (state.rockDrillUnlocked) {
+      drillLvlText.innerText = `(Aktywne)`;
+      drillCostText.innerText = `OK`;
+      upgDrillBtn.disabled = true;
+    } else {
+      drillLvlText.innerText = `(Zablok.)`;
+      drillCostText.innerText = `40 ⚙`;
+      upgDrillBtn.disabled = state.sciencePoints < 40;
+    }
   }
 
   function selectTool(name) {
@@ -110,6 +171,9 @@
     if (btn && !btn.disabled) {
       state.currentTool = name;
       toolButtons.forEach(b => b.classList.toggle('active', b.dataset.tool === name));
+      if (TOOL_HINTS[name]) {
+        contextHint.innerHTML = TOOL_HINTS[name];
+      }
     }
   }
 
@@ -118,7 +182,7 @@
   });
 
   upgBeltBtn.addEventListener('click', () => {
-    const bCost = Math.round(25 * Math.pow(1.8, state.beltSpeedLvl - 1));
+    const bCost = Math.round(20 * Math.pow(1.7, state.beltSpeedLvl - 1));
     if (state.sciencePoints >= bCost) {
       state.sciencePoints -= bCost;
       state.beltSpeedLvl++;
@@ -129,11 +193,32 @@
   });
 
   upgMinerBtn.addEventListener('click', () => {
-    const mCost = Math.round(30 * Math.pow(1.8, state.minerSpeedLvl - 1));
+    const mCost = Math.round(25 * Math.pow(1.7, state.minerSpeedLvl - 1));
     if (state.sciencePoints >= mCost) {
       state.sciencePoints -= mCost;
       state.minerSpeedLvl++;
       state.minerInterval = Math.max(2, state.minerInterval - 1);
+      updateUI();
+      saveGame();
+    }
+  });
+
+  upgHubBtn.addEventListener('click', () => {
+    if (state.hubSize >= 4) return;
+    const hCost = state.hubSize === 2 ? 50 : 120;
+    if (state.sciencePoints >= hCost) {
+      state.sciencePoints -= hCost;
+      state.hubSize++;
+      rebuildHub();
+      updateUI();
+      saveGame();
+    }
+  });
+
+  upgDrillBtn.addEventListener('click', () => {
+    if (!state.rockDrillUnlocked && state.sciencePoints >= 40) {
+      state.sciencePoints -= 40;
+      state.rockDrillUnlocked = true;
       updateUI();
       saveGame();
     }
@@ -207,6 +292,32 @@
             continue;
           }
         }
+        if (cell.type === 'synthesizer' && !item.isDye) {
+          if (isFullShapeOfType(item.shape, 'circle') && !cell.hasCircle) {
+            cell.hasCircle = true;
+            cell.circleColor = item.shape[0].color;
+            state.beltItems.splice(i, 1);
+            continue;
+          }
+          if (isFullShapeOfType(item.shape, 'square') && !cell.hasSquare) {
+            cell.hasSquare = true;
+            cell.squareColor = item.shape[0].color;
+            state.beltItems.splice(i, 1);
+            continue;
+          }
+        }
+        if (cell.type === 'generator' && !item.isDye) {
+          if (isFullShapeOfType(item.shape, 'star')) {
+            cell.fuelTimer = 150; // 15 sekund (150 ticków po 100ms)
+            state.beltItems.splice(i, 1);
+            continue;
+          }
+        }
+        if (cell.type === 'splitter' && !cell.storedItem) {
+          cell.storedItem = { isDye: item.isDye, dyeColor: item.dyeColor, shape: item.shape };
+          state.beltItems.splice(i, 1);
+          continue;
+        }
         if (cell.type === 'tunnel_in' && !cell.storedShape && !cell.storedDye) {
           if (item.isDye) cell.storedDye = item.dyeColor;
           else cell.storedShape = item.shape;
@@ -232,7 +343,7 @@
       }
     }
 
-    ctx.fillStyle = '#10131a';
+    ctx.fillStyle = '#0d1017';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
@@ -244,18 +355,19 @@
     const startRow = Math.floor((-state.camera.y / state.camera.zoom) / GRID_SIZE) - 1;
     const endRow = startRow + Math.ceil(canvas.height / state.camera.zoom / GRID_SIZE) + 2;
 
-    // Rysowanie złóż
+    // 1. Złoża surowców i barwników RGB
     for (let x = startCol; x <= endCol; x++) {
       for (let y = startRow; y <= endRow; y++) {
-        const patch = state.patches.get(`${x},${y}`);
+        const key = `${x},${y}`;
+        const patch = state.patches.get(key);
         if (patch) {
           const px = x * GRID_SIZE;
           const py = y * GRID_SIZE;
-          ctx.fillStyle = '#171c26';
+          ctx.fillStyle = '#151b26';
           ctx.fillRect(px, py, GRID_SIZE, GRID_SIZE);
 
           if (patch.kind === 'shape') {
-            ctx.fillStyle = 'rgba(139, 148, 158, 0.35)';
+            ctx.fillStyle = 'rgba(158, 167, 179, 0.35)';
             if (patch.subType === 'circle') {
               ctx.beginPath();
               ctx.arc(px + GRID_SIZE / 2, py + GRID_SIZE / 2, GRID_SIZE * 0.32, 0, Math.PI * 2);
@@ -266,9 +378,9 @@
             }
           } else if (patch.kind === 'dye') {
             ctx.fillStyle = COLOR_MAP[patch.subType] || '#ff4d4f';
-            ctx.globalAlpha = 0.35;
+            ctx.globalAlpha = 0.45;
             ctx.beginPath();
-            ctx.arc(px + GRID_SIZE / 2, py + GRID_SIZE / 2, GRID_SIZE * 0.28, 0, Math.PI * 2);
+            ctx.arc(px + GRID_SIZE / 2, py + GRID_SIZE / 2, GRID_SIZE * 0.3, 0, Math.PI * 2);
             ctx.fill();
             ctx.globalAlpha = 1.0;
           }
@@ -276,8 +388,8 @@
       }
     }
 
-    // Siatka
-    ctx.strokeStyle = '#1a202c';
+    // 2. Siatka
+    ctx.strokeStyle = '#19202b';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = startCol; x <= endCol; x++) {
@@ -290,7 +402,33 @@
     }
     ctx.stroke();
 
-    // Linie podziemne tuneli
+    // 3. Skały
+    for (let x = startCol; x <= endCol; x++) {
+      for (let y = startRow; y <= endRow; y++) {
+        if (state.rocks.has(`${x},${y}`)) {
+          drawRock(ctx, x, y);
+        }
+      }
+    }
+
+    // 4. Strefy zasilania wokół aktywnych Generatorów Prądu
+    state.grid.forEach(b => {
+      if (b.type === 'generator' && (b.fuelTimer || 0) > 0) {
+        const cx = b.x * GRID_SIZE + GRID_SIZE / 2;
+        const cy = b.y * GRID_SIZE + GRID_SIZE / 2;
+        const rad = POWER_RADIUS * GRID_SIZE;
+
+        ctx.fillStyle = 'rgba(250, 219, 20, 0.08)';
+        ctx.strokeStyle = 'rgba(250, 219, 20, 0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    });
+
+    // 5. Linie podziemne tuneli
     state.grid.forEach(b => {
       if (b.type === 'tunnel_in') {
         const dir = DIRS[b.rot];
@@ -313,16 +451,16 @@
       }
     });
 
-    // Budynki
-    state.grid.forEach(b => drawBuilding(ctx, b.x, b.y, b.type, b.rot, 1.0));
+    // 6. Budynki
+    state.grid.forEach(b => drawBuilding(ctx, b.x, b.y, b.type, b.rot, 1.0, b));
 
-    // Podgląd budowania taśmy
+    // 7. Podgląd przeciągania
     const preview = input.getDragPreview();
     if (preview) {
       preview.forEach(node => drawBuilding(ctx, node.x, node.y, 'belt', node.rot, 0.45));
     }
 
-    // Przedmioty na taśmach
+    // 8. Przedmioty na taśmach
     state.beltItems.forEach(item => {
       const cell = state.grid.get(`${item.curX},${item.curY}`);
       let px = item.curX * GRID_SIZE + GRID_SIZE / 2;

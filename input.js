@@ -45,11 +45,18 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
   function applySingleTool(gx, gy) {
     const key = `${gx},${gy}`;
     if (state.currentTool === 'delete') {
+      if (state.rocks.has(key)) {
+        if (state.rockDrillUnlocked) {
+          state.rocks.delete(key);
+        }
+        return;
+      }
       const existing = state.grid.get(key);
       if (existing && existing.type === 'hub') return;
       state.grid.delete(key);
       state.beltItems = state.beltItems.filter(i => i.curX !== gx || i.curY !== gy);
     } else {
+      if (state.rocks.has(key)) return;
       const existing = state.grid.get(key);
       if (existing && existing.type === 'hub') return;
       state.grid.set(key, {
@@ -58,6 +65,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
         y: gy,
         rot: state.currentRotation,
         timer: 0,
+        fuelTimer: 0,
         storedShape: null,
         storedDye: null,
         storedInputs: [],
@@ -113,6 +121,7 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
         const path = calculateBeltPath(dragStart, dragEnd);
         path.forEach(node => {
           const key = `${node.x},${node.y}`;
+          if (state.rocks.has(key)) return;
           const existing = state.grid.get(key);
           if (!existing || existing.type !== 'hub') {
             state.grid.set(key, { type: 'belt', x: node.x, y: node.y, rot: node.rot });
@@ -136,17 +145,21 @@ window.Factory.setupInput = function(canvas, onToolSelect) {
   }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'r' || e.key === 'R') state.currentRotation = (state.currentRotation + 1) % 4;
-    else if (e.key === '1') onToolSelect('belt');
-    else if (e.key === '2') onToolSelect('miner');
-    else if (e.key === '3') onToolSelect('cutter');
-    else if (e.key === '4') onToolSelect('rotator');
-    else if (e.key === '5') onToolSelect('merger');
-    else if (e.key === '6') onToolSelect('painter');
-    else if (e.key === '7') onToolSelect('mixer');
-    else if (e.key === '8') onToolSelect('tunnel_in');
-    else if (e.key === '9') onToolSelect('tunnel_out');
-    else if (e.key === '0') onToolSelect('delete');
+    const k = e.key.toLowerCase();
+    if (k === 'r') state.currentRotation = (state.currentRotation + 1) % 4;
+    else if (k === '1') onToolSelect('belt');
+    else if (k === '2') onToolSelect('miner');
+    else if (k === '3') onToolSelect('cutter');
+    else if (k === '4') onToolSelect('rotator');
+    else if (k === '5') onToolSelect('merger');
+    else if (k === '6') onToolSelect('painter');
+    else if (k === '7') onToolSelect('mixer');
+    else if (k === '8') onToolSelect('synthesizer');
+    else if (k === '9') onToolSelect('generator');
+    else if (k === '0') onToolSelect('splitter');
+    else if (k === 'q') onToolSelect('tunnel_in');
+    else if (k === 'e') onToolSelect('tunnel_out');
+    else if (k === 'x' || e.key === 'Delete' || e.key === 'Backspace') onToolSelect('delete');
   });
 
   return {
