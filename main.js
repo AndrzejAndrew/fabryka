@@ -1,12 +1,12 @@
 (function() {
-  const { GRID_SIZE, DIRS, LEVELS, COLOR_MAP, POWER_RADIUS, state, initInitialWorld, saveGame, loadGame, clearGameSave, runSimulationTick, isFullShapeOfType, drawShape, drawDyeDrop, drawRock, drawBuilding, setupInput } = window.Factory;
+  const { GRID_SIZE, DIRS, LEVELS, COLOR_MAP, POWER_RADIUS, state, initInitialWorld, saveGame, loadGame, clearGameSave, runSimulationTick, isFullShapeOfType, drawShape, drawDyeDrop, drawWaste, drawRock, drawBuilding, setupInput } = window.Factory;
 
   state.rocks = state.rocks || new Set(); state.patches = state.patches || new Map(); state.grid = state.grid || new Map();
   state.beltItems = state.beltItems || []; state.hubSize = state.hubSize || 2; state.rockDrillUnlocked = Boolean(state.rockDrillUnlocked);
   state.matter = state.matter || 200; state.matterPerMinute = state.matterPerMinute || 0; state.sciencePerMinute = state.sciencePerMinute || 0;
   state.prestigeCount = state.prestigeCount || 0; state.quantumCores = state.quantumCores || 0;
   
- const BUILDING_COSTS = { belt: 1, miner: 15, cutter: 30, rotator: 20, merger: 40, painter: 50, mixer: 60, synthesizer: 100, generator: 150, splitter: 10, tunnel_in: 25, tunnel_out: 25, incinerator: 80, landfill: 20 };
+  const BUILDING_COSTS = { belt: 1, miner: 15, cutter: 30, rotator: 20, merger: 40, painter: 50, mixer: 60, synthesizer: 100, generator: 150, splitter: 10, tunnel_in: 25, tunnel_out: 25, incinerator: 80, landfill: 20 };
   
   const TOOL_HINTS = {
     belt: "Kieruje przepływem. Przeciągnij LPM by budować linię.",
@@ -21,7 +21,9 @@
     splitter: "Rozdziela surowce 50/50 na wprost i w bok.",
     tunnel_in: "Omija rurą do 5 przeszkód.",
     tunnel_out: "Odbiera surowce z wejścia.",
-    delete: "Zwraca 50% materii. Kruszy skały."
+    delete: "Zwraca 50% materii. Kruszy skały.",
+    incinerator: "Spalarnia: Niszczy Żużel (Odpad) i generuje z niego prąd na 15 sekund!",
+    landfill: "Wysypisko: Magazynuje do 100 sztuk Żużla."
   };
 
   const rebuildHub = window.Factory.rebuildHub || function() {
@@ -38,10 +40,7 @@
 
   const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
   const goalCanvas = document.getElementById('goalCanvas'); const goalCtx = goalCanvas.getContext('2d');
-  
   canvas.style.position = 'fixed'; canvas.style.top = '0'; canvas.style.left = '0';
-  const uiContainer = document.getElementById('ui'); if (uiContainer) uiContainer.style.zIndex = '10';
-  const toolbarContainer = document.getElementById('toolbar'); if (toolbarContainer) toolbarContainer.style.zIndex = '10';
 
   const levelBadge = document.getElementById('levelBadge'); const goalTitle = document.getElementById('goalTitle');
   const goalProgressFill = document.getElementById('goalProgressFill'); const goalProgressText = document.getElementById('goalProgressText');
@@ -62,49 +61,6 @@
   }
   const prestigeDisplay = document.getElementById('prestigeDisplay');
 
-  // Wstrzykiwanie WIKI do DOM
-  const helpBtn = document.getElementById('helpBtn'); 
-  const wikiBtn = document.createElement('button');
-  wikiBtn.className = 'top-right-btn'; wikiBtn.innerHTML = '📚 Encyklopedia (Wiki)';
-  wikiBtn.style.position = 'fixed'; wikiBtn.style.top = '16px'; wikiBtn.style.right = '16px'; wikiBtn.style.zIndex = '20'; wikiBtn.style.background = '#1f6feb'; wikiBtn.style.color = '#fff'; wikiBtn.style.border = '1px solid #58a6ff'; wikiBtn.style.padding = '8px 16px'; wikiBtn.style.borderRadius = '6px'; wikiBtn.style.cursor = 'pointer'; wikiBtn.style.fontWeight = 'bold';
-  document.body.appendChild(wikiBtn);
-  if (helpBtn) helpBtn.style.display = 'none'; // Zastępujemy stary przycisk pomocy
-
-  const wikiModal = document.createElement('div');
-  wikiModal.style.cssText = `position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);`;
-  wikiModal.innerHTML = `
-    <div style="background:#161b22; border:1px solid #30363d; border-radius:12px; width:800px; max-width:95%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 16px 40px rgba(0,0,0,0.8); overflow:hidden;">
-      <div style="background:#21262d; padding:16px 24px; border-bottom:1px solid #30363d; display:flex; justify-content:space-between; align-items:center;">
-        <h2 style="color:#f0f6fc; margin:0; font-size:18px;">📚 Baza Wiedzy Inżyniera</h2>
-        <button id="closeWikiBtn" style="background:transparent; border:none; color:#8b949e; font-size:24px; cursor:pointer;">&times;</button>
-      </div>
-      <div style="padding:24px; overflow-y:auto; color:#c9d1d9; line-height:1.6; font-size:14px;">
-        <h3 style="color:#58a6ff; margin-bottom:8px;">1. Główne zasady i Koszty</h3>
-        <p>Twoim celem jest budowa <b>Wielkiego Przekaźnika</b> (ukończenie Poziomu 8). Budowanie maszyn kosztuje <b>MateriĘ 🧱</b>. Zdobędziesz ją dostarczając dowolne kształty do fioletowego Rdzenia. Usuwanie budynków (X) zwraca 50% materiałów.</p>
-        
-        <h3 style="color:#3fb950; margin-top:20px; margin-bottom:8px;">2. Zaawansowane Maszyny 2-polowe</h3>
-        <div style="background:#0d1117; padding:16px; border-radius:8px; border:1px solid #30363d; margin-bottom:12px;">
-          <h4 style="color:#e3b341; margin-top:0;">✂️ Przecinarka (Koszt: 30 🧱)</h4>
-          Zajmuje dwa kafelki obok siebie. Posiada wewnętrzne pionowe ostrze. Doprowadzasz taśmociąg do <b>głównego kafelka</b> (tego ze strzałką). Maszyna tnie go w pionie. Prawa połówka wyjedzie prawym portem, a lewa połówka wyjedzie lewym portem.
-        </div>
-        <div style="background:#0d1117; padding:16px; border-radius:8px; border:1px solid #30363d; margin-bottom:12px;">
-          <h4 style="color:#f85149; margin-top:0;">🧩 Monter (Koszt: 40 🧱)</h4>
-          Wymaga podłączenia dwóch taśmociągów od tyłu (jeden do lewego portu, drugi do prawego). Skleja dwie połówki.
-        </div>
-        <div style="background:#0d1117; padding:16px; border-radius:8px; border:1px solid #30363d;">
-          <h4 style="color:#a371f7; margin-top:0;">⚙️ Maszyny Syntezy (Lakiernia, Mieszalnik, Syntezator)</h4>
-          Wszystkie zajmują po dwa pola. Zawsze podpinasz lewy strumień materiału (główny wlot) i prawy strumień (pomocniczy wlot na prawym kafelku). Jeśli podepniesz zły typ (np. kształt zamiast koloru do Lakierni), wejście się zablokuje!
-        </div>
-
-        <h3 style="color:#a371f7; margin-top:20px; margin-bottom:8px;">3. Skok Międzyplanetarny (Prestiż)</h3>
-        <p>Po ukończeniu ostatecznego schematu otrzymasz możliwość zresetowania bazy i wykonania Skoku. Zachowasz technologię i otrzymasz <b>Rdzenie Kwantowe</b>. Każdy Rdzeń to +25% do zysków Materii, Nauki i Prędkości Wydobycia na stałe!</p>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(wikiModal);
-  wikiBtn.addEventListener('click', () => wikiModal.style.display = 'flex');
-  document.getElementById('closeWikiBtn').addEventListener('click', () => wikiModal.style.display = 'none');
-
   const upgBeltBtn = document.getElementById('upgBelt'); const upgMinerBtn = document.getElementById('upgMiner');
   const upgHubBtn = document.getElementById('upgHub'); const upgDrillBtn = document.getElementById('upgDrill');
   const beltLvlText = document.getElementById('beltLvl'); const minerLvlText = document.getElementById('minerLvl');
@@ -114,12 +70,10 @@
   const toolButtons = document.querySelectorAll('.tool-btn');
   const newMapBtn = document.getElementById('newMapBtn');
 
-  // --- NAPRAWA PRZYCISKÓW ULEPSZEŃ ---
   upgBeltBtn.addEventListener('click', () => {
     const cost = Math.round(20 * Math.pow(1.7, state.beltSpeedLvl - 1));
     if (state.sciencePoints >= cost) {
-      state.sciencePoints -= cost; 
-      state.beltSpeedLvl++;
+      state.sciencePoints -= cost; state.beltSpeedLvl++;
       state.beltSpeed = 2.5 + (state.beltSpeedLvl - 1) * 1.0;
       updateUI(); saveGame();
     }
@@ -128,8 +82,7 @@
   upgMinerBtn.addEventListener('click', () => {
     const cost = Math.round(25 * Math.pow(1.7, state.minerSpeedLvl - 1));
     if (state.sciencePoints >= cost) {
-      state.sciencePoints -= cost; 
-      state.minerSpeedLvl++;
+      state.sciencePoints -= cost; state.minerSpeedLvl++;
       state.minerInterval = Math.max(2, 5 - (state.minerSpeedLvl - 1));
       updateUI(); saveGame();
     }
@@ -138,37 +91,28 @@
   upgHubBtn.addEventListener('click', () => {
     const cost = state.hubSize === 2 ? 50 : 120;
     if (state.hubSize < 4 && state.sciencePoints >= cost) {
-      state.sciencePoints -= cost; 
-      state.hubSize++;
+      state.sciencePoints -= cost; state.hubSize++;
       rebuildHub(); updateUI(); saveGame();
     }
   });
 
   upgDrillBtn.addEventListener('click', () => {
     if (!state.rockDrillUnlocked && state.sciencePoints >= 40) {
-      state.sciencePoints -= 40; 
-      state.rockDrillUnlocked = true;
+      state.sciencePoints -= 40; state.rockDrillUnlocked = true;
       updateUI(); saveGame();
     }
   });
 
   const resetSaveBtn = document.getElementById('resetSaveBtn');
-  if (resetSaveBtn) {
-    resetSaveBtn.addEventListener('click', () => {
-      if (confirm("⚠️ UWAGA! Czy na pewno chcesz skasować cały zapis gry i zacząć od zera?")) {
-        clearGameSave();
-      }
-    });
-  }
+  if (resetSaveBtn) resetSaveBtn.addEventListener('click', () => { if (confirm("⚠️ UWAGA! Czy na pewno chcesz skasować cały zapis gry i zacząć od zera?")) clearGameSave(); });
 
-  // Przycisk Skoku (Prestiż) w UI
   const prestigeActionBtn = document.createElement('button');
   prestigeActionBtn.className = 'upgrade-btn'; prestigeActionBtn.style.borderColor = '#a371f7'; prestigeActionBtn.style.color = '#a371f7'; prestigeActionBtn.style.display = 'none';
   prestigeActionBtn.innerHTML = `<span>🌌 Skok Międzyplanetarny</span><span>Gotowe!</span>`;
   document.querySelector('.upgrade-list').prepend(prestigeActionBtn);
   
   prestigeActionBtn.addEventListener('click', () => {
-    if (confirm("UWAGA! Wykonanie Skoku zniszczy obecną fabrykę i mapę. Zdobędziesz +1 Rdzeń Kwantowy (Permanentne +25% prędkości i zysków). Lecimy?")) {
+    if (confirm("UWAGA! Wykonanie Skoku zniszczy obecną fabrykę i mapę. Zdobędziesz +1 Rdzeń Kwantowy (+25% prędkości). Lecimy?")) {
       state.quantumCores++; state.prestigeCount++;
       state.matter = 200; state.currentLvlIndex = 0; state.currentLvlProgress = 0;
       state.beltItems = []; state.grid.clear();
@@ -177,36 +121,11 @@
     }
   });
 
-  const stepBanner = document.createElement('div');
-  stepBanner.style.cssText = `position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(22, 27, 34, 0.96); border: 2px solid #58a6ff; border-radius: 10px; padding: 10px 18px; color: #f0f6fc; font-size: 13px; max-width: 540px; box-shadow: 0 10px 28px rgba(0,0,0,0.65); z-index: 25; pointer-events: auto; display: none; line-height: 1.45;`;
-  document.body.appendChild(stepBanner);
-
-  const unlockPopup = document.createElement('div');
-  unlockPopup.style.cssText = `position: fixed; inset: 0; background: rgba(0,0,0,0.72); display: none; align-items: center; justify-content: center; z-index: 50;`;
-  unlockPopup.innerHTML = `<div style="background:#161b22; border:2px solid #58a6ff; border-radius:12px; padding:22px 26px; max-width:480px; width:90%; box-shadow:0 16px 40px rgba(0,0,0,0.8); color:#f0f6fc;"><h3 id="unlockPopupTitle" style="color:#58a6ff; margin-bottom:12px; font-size:17px;"></h3><div id="unlockPopupBody" style="font-size:13px; margin-bottom:18px;"></div><button id="unlockPopupClose" style="background:#238636; border:1px solid #3fb950; color:#fff; font-weight:700; padding:8px 18px; border-radius:6px; cursor:pointer; width:100%;">Zrozumiano</button></div>`;
-  document.body.appendChild(unlockPopup); document.getElementById('unlockPopupClose').addEventListener('click', () => unlockPopup.style.display = 'none');
-
-  const offlinePopup = document.createElement('div');
-  offlinePopup.style.cssText = `position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 100;`;
-  offlinePopup.innerHTML = `<div style="background:#161b22; border:2px solid #3fb950; border-radius:12px; padding:26px; max-width:420px; width:90%; box-shadow:0 16px 40px rgba(0,0,0,0.8); color:#f0f6fc; text-align:center;"><h3 style="color:#3fb950; margin-bottom:12px; font-size:18px;">🌙 Produkcja Offline</h3><p style="font-size:13px; color:#c9d1d9; margin-bottom:20px;">Czas poza grą: <span id="offlineTimeStr">0h</span></p><div style="display:flex; justify-content:space-around; margin-bottom:24px; background:#0d1117; padding:12px; border-radius:8px;"><div><div style="font-size:11px; color:#8b949e;">Materia</div><div style="color:#3fb950; font-weight:bold; font-size:20px;">+<span id="offlineMatterVal">0</span> 🧱</div></div><div><div style="font-size:11px; color:#8b949e;">Nauka</div><div style="color:#a371f7; font-weight:bold; font-size:20px;">+<span id="offlineScienceVal">0</span> ⚙</div></div></div><button id="offlinePopupClose" style="background:#238636; border:1px solid #3fb950; color:#fff; padding:10px 20px; border-radius:6px; cursor:pointer; width:100%;">Zbierz</button></div>`;
-  document.body.appendChild(offlinePopup); document.getElementById('offlinePopupClose').addEventListener('click', () => offlinePopup.style.display = 'none');
-
-  const UNLOCK_GUIDES = {
-    cutter: { title: "✂️ Nowość: Przecinarka (2x1)", body: `Zajmuje 2 kafelki. Wlot od dołu na lewym polu. Z przodu wypluwa lewą i prawą połówkę oddzielnie!` },
-    rotator: { title: "🔄 Nowość: Rotator", body: `Przecinarka tnie pionowo. Użyj Rotatora, by obrócić kształt w poziom.` },
-    merger: { title: "🧩 Nowość: Monter (2x1)", body: `Posiada dwa wloty (lewy i prawy) na tyle maszyny. Łączy połówki w całość.` }
-  };
-  function showUnlockGuide(toolKey) { const guide = UNLOCK_GUIDES[toolKey]; if (guide) { document.getElementById('unlockPopupTitle').innerHTML = guide.title; document.getElementById('unlockPopupBody').innerHTML = guide.body; unlockPopup.style.display = 'flex'; } }
-
   function calculateOfflineProgress() {
     const now = Date.now(); const lastTime = state.lastSaveTime || now; const diffMinutes = Math.floor((now - lastTime) / 60000);
     if (diffMinutes > 3 && (state.matterPerMinute > 0 || state.sciencePerMinute > 0)) {
       const effective = Math.min(diffMinutes, 24 * 60);
-      const m = effective * (state.matterPerMinute || 0); const s = effective * (state.sciencePerMinute || 0);
-      state.matter += m; state.sciencePoints += s;
-      document.getElementById('offlineTimeStr').innerText = `${Math.floor(effective/60)}h ${effective%60}m`;
-      document.getElementById('offlineMatterVal').innerText = m; document.getElementById('offlineScienceVal').innerText = s;
-      offlinePopup.style.display = 'flex';
+      state.matter += effective * (state.matterPerMinute || 0); state.sciencePoints += effective * (state.sciencePerMinute || 0);
     }
     state.lastSaveTime = now;
   }
@@ -219,10 +138,17 @@
   function canEnterMachine(nextCell, item) {
     if (!nextCell) return false; if (nextCell.type === 'belt' || nextCell.type === 'hub') return true;
     
+    // Zabezpieczenie: Odpady mogą wjechać TYLKO do Spalarni, Wysypiska i Tunelu. Reszta je blokuje.
+    if (item.isWaste) {
+      if (nextCell.type === 'incinerator') return true;
+      if (nextCell.type === 'landfill') return (nextCell.storedWaste || 0) < 100;
+      if (nextCell.type === 'tunnel_in') return !nextCell.storedShape && !nextCell.storedDye && !nextCell.hasWasteStored;
+      return false; 
+    }
+
     if (nextCell.type === 'cutter') return !item.isDye && !nextCell.storedShape;
     if (nextCell.type === 'rotator') return !item.isDye && !nextCell.storedShape;
     
-    // Zabezpieczenia portów pomocniczych (prawy kafelek)
     if (['merger_sec', 'painter_sec', 'mixer_sec', 'synthesizer_sec'].includes(nextCell.type)) {
       const main = state.grid.get(nextCell.partnerKey);
       if (!main) return false;
@@ -230,11 +156,9 @@
       if (nextCell.type === 'painter_sec') return item.isDye && !main.storedRight;
       if (nextCell.type === 'mixer_sec') return item.isDye && !main.storedRight;
       if (nextCell.type === 'synthesizer_sec') return !item.isDye && isFullShapeOfType(item.shape, 'square') && !main.storedRight;
-	  
       return false;
     }
     
-    // Zabezpieczenia portów głównych (lewy kafelek)
     if (['merger', 'painter', 'mixer', 'synthesizer'].includes(nextCell.type)) {
       if (nextCell.type === 'merger') return !item.isDye && !nextCell.storedLeft;
       if (nextCell.type === 'painter') return !item.isDye && !nextCell.storedLeft;
@@ -245,11 +169,9 @@
 
     if (nextCell.type === 'generator') return isFullShapeOfType(item.shape, 'star') && (nextCell.fuelTimer || 0) < 100;
     if (nextCell.type === 'splitter') return !nextCell.storedItem;
-    if (nextCell.type === 'splitter_sec') return false; // Wyjście
+    if (nextCell.type === 'splitter_sec') return false; 
     
-    if (nextCell.type === 'tunnel_in') return !nextCell.storedShape && !nextCell.storedDye;
-	if (nextCell.type === 'incinerator') return item.isWaste;
-    if (nextCell.type === 'landfill') return item.isWaste && (nextCell.storedWaste || 0) < 100;
+    if (nextCell.type === 'tunnel_in') return !nextCell.storedShape && !nextCell.storedDye && !nextCell.hasWasteStored;
     return false;
   }
 
@@ -300,10 +222,7 @@
     runSimulationTick((m, s) => {
       if (m > 0) { state.matter += m; matterGainedThisMinute += m; } if (s > 0) { state.sciencePoints += s; scienceGainedThisMinute += s; }
       updateUI();
-    }, (finishedLvl) => {
-      updateUI(); saveGame();
-      if (finishedLvl && Array.isArray(finishedLvl.unlocks) && finishedLvl.unlocks.length > 0) { const primaryUnlock = finishedLvl.unlocks.find(u => UNLOCK_GUIDES[u]) || finishedLvl.unlocks[0]; showUnlockGuide(primaryUnlock); }
-    });
+    }, (finishedLvl) => { updateUI(); saveGame(); });
   }, 100);
 
   let lastTime = performance.now();
@@ -315,42 +234,52 @@
         const cell = state.grid.get(`${item.curX},${item.curY}`);
         if (!cell) { state.beltItems.splice(i, 1); continue; }
         
-        if (cell.type === 'cutter' && !item.isDye && !cell.storedShape) { cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
-        if (cell.type === 'rotator' && !item.isDye && !cell.storedShape) { cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
+        // --- BUDYNKI UTYLIZACJI (SPALARNIA I WYSYPISKO) ---
+        if (cell.type === 'incinerator' && item.isWaste) {
+          cell.fuelTimer = 150; // Spalarnia generuje prąd z żużla
+          state.beltItems.splice(i, 1); continue;
+        }
+        if (cell.type === 'landfill' && item.isWaste) {
+          cell.storedWaste = (cell.storedWaste || 0) + 1;
+          state.beltItems.splice(i, 1); continue;
+        }
+
+        if (cell.type === 'cutter' && !item.isDye && !item.isWaste && !cell.storedShape) { cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
+        if (cell.type === 'rotator' && !item.isDye && !item.isWaste && !cell.storedShape) { cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
         
-        // --- MASZYNY 2-WEJŚCIOWE (MONTER, LAKIERNIA, MIESZALNIK, SYNTEZATOR) ---
-        // Lewy Wlot (Główny kafelek)
         if (['merger', 'painter', 'mixer', 'synthesizer'].includes(cell.type)) {
-          if (!cell.storedLeft) {
+          if (!cell.storedLeft && !item.isWaste) {
             if (cell.type === 'mixer' && item.isDye) cell.storedLeft = item.dyeColor;
             else if (cell.type === 'painter' && !item.isDye) cell.storedLeft = item.shape;
             else if (cell.type === 'synthesizer' && !item.isDye && isFullShapeOfType(item.shape, 'circle')) cell.storedLeft = item.shape;
             else if (cell.type === 'merger' && !item.isDye) cell.storedLeft = item.shape;
-            else continue; // Niewłaściwy przedmiot
-            
+            else continue; 
             state.beltItems.splice(i, 1); continue;
           }
         }
         
-        // Prawy Wlot (Kafelek pomocniczy _sec)
         if (['merger_sec', 'painter_sec', 'mixer_sec', 'synthesizer_sec'].includes(cell.type)) {
           const main = state.grid.get(cell.partnerKey);
-          if (main && !main.storedRight) {
+          if (main && !main.storedRight && !item.isWaste) {
             const baseType = main.type;
             if (baseType === 'mixer' && item.isDye) main.storedRight = item.dyeColor;
             else if (baseType === 'painter' && item.isDye) main.storedRight = item.dyeColor; 
             else if (baseType === 'synthesizer' && !item.isDye && isFullShapeOfType(item.shape, 'square')) main.storedRight = item.shape;
             else if (baseType === 'merger' && !item.isDye) main.storedRight = item.shape;
-            else continue; // Niewłaściwy przedmiot
-            
+            else continue; 
             state.beltItems.splice(i, 1); continue;
           }
         }
 
-        // Generator, Splitter i Tunele
-        if (cell.type === 'generator' && !item.isDye) { if (isFullShapeOfType(item.shape, 'star')) { cell.fuelTimer = 150; state.beltItems.splice(i, 1); continue; } }
-        if (cell.type === 'splitter' && !cell.storedItem) { cell.storedItem = { isDye: item.isDye, dyeColor: item.dyeColor, shape: item.shape }; state.beltItems.splice(i, 1); continue; }
-        if (cell.type === 'tunnel_in' && !cell.storedShape && !cell.storedDye) { if (item.isDye) cell.storedDye = item.dyeColor; else cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
+        if (cell.type === 'generator' && !item.isDye && !item.isWaste) { if (isFullShapeOfType(item.shape, 'star')) { cell.fuelTimer = 150; state.beltItems.splice(i, 1); continue; } }
+        if (cell.type === 'splitter' && !cell.storedItem) { cell.storedItem = { isDye: item.isDye, isWaste: item.isWaste, dyeColor: item.dyeColor, shape: item.shape }; state.beltItems.splice(i, 1); continue; }
+        
+        if (cell.type === 'tunnel_in' && !cell.storedShape && !cell.storedDye && !cell.hasWasteStored) { 
+          if (item.isWaste) cell.hasWasteStored = true;
+          else if (item.isDye) cell.storedDye = item.dyeColor; 
+          else cell.storedShape = item.shape; 
+          state.beltItems.splice(i, 1); continue; 
+        }
 
         if (cell.type === 'belt') {
           const dir = DIRS[cell.rot] || DIRS[0]; const nx = item.curX + dir.x; const ny = item.curY + dir.y;
@@ -383,7 +312,12 @@
     ctx.stroke();
 
     if (state.rocks) { for (let x = startCol; x <= endCol; x++) { for (let y = startRow; y <= endRow; y++) { if (state.rocks.has(`${x},${y}`)) drawRock(ctx, x, y); } } }
-    state.grid.forEach(b => { if (b.type === 'generator' && (b.fuelTimer || 0) > 0) { ctx.fillStyle = 'rgba(250, 219, 20, 0.08)'; ctx.strokeStyle = 'rgba(250, 219, 20, 0.45)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(b.x * GRID_SIZE + GRID_SIZE / 2, b.y * GRID_SIZE + GRID_SIZE / 2, POWER_RADIUS * GRID_SIZE, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } });
+    state.grid.forEach(b => { 
+      if ((b.type === 'generator' || b.type === 'incinerator') && (b.fuelTimer || 0) > 0) { 
+        ctx.fillStyle = 'rgba(250, 219, 20, 0.08)'; ctx.strokeStyle = 'rgba(250, 219, 20, 0.45)'; ctx.lineWidth = 2; 
+        ctx.beginPath(); ctx.arc(b.x * GRID_SIZE + GRID_SIZE / 2, b.y * GRID_SIZE + GRID_SIZE / 2, POWER_RADIUS * GRID_SIZE, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); 
+      } 
+    });
     state.grid.forEach(b => {
       if (b.type === 'tunnel_in') {
         const dir = DIRS[b.rot];
@@ -409,7 +343,11 @@
     state.beltItems.forEach(item => {
       const cell = state.grid.get(`${item.curX},${item.curY}`); let px = item.curX * GRID_SIZE + GRID_SIZE / 2, py = item.curY * GRID_SIZE + GRID_SIZE / 2;
       if (cell && cell.type === 'belt') { const dir = DIRS[cell.rot] || DIRS[0]; px += dir.x * (item.progress - 0.5) * GRID_SIZE; py += dir.y * (item.progress - 0.5) * GRID_SIZE; }
-      if (item.isDye) drawDyeDrop(ctx, px, py, item.dyeColor, GRID_SIZE * 0.4); else drawShape(ctx, px, py, item.shape, GRID_SIZE * 0.38);
+      
+      // Rysowanie przedmiotu na taśmie (Zależnie czy to Żużel, Kolor czy Kształt)
+      if (item.isWaste) drawWaste(ctx, px, py, GRID_SIZE * 0.4);
+      else if (item.isDye) drawDyeDrop(ctx, px, py, item.dyeColor, GRID_SIZE * 0.4); 
+      else drawShape(ctx, px, py, item.shape, GRID_SIZE * 0.38);
     });
 
     ctx.restore(); requestAnimationFrame(render);
