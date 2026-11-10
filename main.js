@@ -415,7 +415,6 @@
 
   function canEnterMachine(nextCell, item) {
     if (!nextCell) return false;
-    if (nextCell.type === 'belt' || nextCell.type === 'hub') return true;
 
     if (item.isWaste) {
       if (nextCell.type === 'belt') return true;

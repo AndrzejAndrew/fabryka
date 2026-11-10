@@ -28,7 +28,6 @@ window.Factory.drawDyeDrop = function(ctx, x, y, color, size) {
   ctx.restore();
 };
 
-// NOWA FUNKCJA - rysowanie tokstycznych beczek (żużla)
 window.Factory.drawWaste = function(ctx, x, y, size) {
   ctx.save(); ctx.translate(x, y);
   ctx.fillStyle = '#262c36'; ctx.strokeStyle = '#3fb950'; ctx.lineWidth = 1.5;
@@ -79,7 +78,6 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.strokeRect(-6, GRID_SIZE * 0.15, 12, 12); 
     ctx.fillStyle = '#ff7b72'; ctx.beginPath(); ctx.arc(GRID_SIZE, GRID_SIZE * 0.22, 6, 0, Math.PI * 2); ctx.fill(); 
     ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-6, -10); ctx.lineTo(6, -10); ctx.lineTo(0, -18); ctx.closePath(); ctx.fill();
-    // Ikona Odpadów
     ctx.fillStyle = '#3fb950'; ctx.beginPath(); ctx.arc(GRID_SIZE, -14, 4, 0, Math.PI * 2); ctx.fill();
   } else if (type === 'mixer') {
     ctx.fillStyle = '#553098'; ctx.strokeStyle = '#a371f7'; ctx.lineWidth = 2;
@@ -93,7 +91,6 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, GRID_SIZE * 0.2, 5, 0, Math.PI*2); ctx.stroke();
     ctx.strokeRect(GRID_SIZE - 5, GRID_SIZE * 0.15, 10, 10);
     ctx.fillStyle = '#fadb14'; ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(3, -5); ctx.lineTo(10, -2); ctx.lineTo(3, 1); ctx.lineTo(0, 8); ctx.lineTo(-3, 1); ctx.lineTo(-10, -2); ctx.lineTo(-3, -5); ctx.closePath(); ctx.fill();
-    // Ikona Odpadów
     ctx.fillStyle = '#3fb950'; ctx.beginPath(); ctx.arc(GRID_SIZE, -14, 4, 0, Math.PI * 2); ctx.fill();
   } else if (type === 'splitter') {
     ctx.fillStyle = '#2d333b'; ctx.strokeStyle = '#636e7b'; ctx.lineWidth = 2;
@@ -112,14 +109,12 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
     ctx.fillStyle = active ? '#ffffff' : '#8b949e'; ctx.beginPath(); ctx.moveTo(2, -10); ctx.lineTo(-6, 1); ctx.lineTo(1, 1); ctx.lineTo(-2, 10); ctx.lineTo(6, -1); ctx.lineTo(-1, -1); ctx.closePath(); ctx.fill();
   } else if (type === 'incinerator') {
-    // --- NOWY BUDYNEK: SPALARNIA ---
     const active = bObj && bObj.fuelTimer > 0;
     ctx.fillStyle = '#1c2129'; ctx.strokeStyle = active ? '#ff4d4f' : '#6e7681'; ctx.lineWidth = 2;
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-    // Płomień
     ctx.fillStyle = active ? '#ff4d4f' : '#3b4352';
     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(6, 6); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill();
- } else if (type === 'landfill') {
+  } else if (type === 'landfill') {
     const count = bObj ? (bObj.storedWaste || 0) : 0;
     const isFull = count >= 100;
     ctx.fillStyle = '#2d333b';
@@ -128,13 +123,11 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
     ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
 
-    // Pasek zapełnienia
     const fillPct = Math.min(100, count) / 100;
     ctx.fillStyle = isFull ? 'rgba(248, 81, 73, 0.5)' : 'rgba(63, 185, 80, 0.4)';
     const maxH = GRID_SIZE - 8;
     ctx.fillRect(-GRID_SIZE/2 + 4, GRID_SIZE/2 - 4 - (maxH * fillPct), GRID_SIZE - 8, maxH * fillPct);
 
-    // Strzałka wylotowa (do wypompowywania Żużla do Spalarni)
     ctx.fillStyle = '#3fb950';
     ctx.beginPath();
     ctx.moveTo(0, -GRID_SIZE * 0.42);
@@ -143,7 +136,6 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     ctx.closePath();
     ctx.fill();
 
-    // Tekst licznika np. "45" na środku Wysypiska (bez obrotu)
     ctx.save();
     ctx.rotate(-dirObj.angle);
     ctx.fillStyle = '#ffffff';
@@ -151,7 +143,18 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(`${count}`, 0, 2);
-	// Wskaźnik BRAKU PRĄDU dla zaawansowanych maszyn (Lakiernia, Mieszalnik, Syntezator od Poz. 6)
+    ctx.restore();
+  } else if (type === 'tunnel_in' || type === 'tunnel_out') {
+    ctx.fillStyle = '#382554'; ctx.strokeStyle = '#8957e5'; ctx.lineWidth = 2;
+    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+    ctx.fillStyle = '#d2a8ff'; ctx.beginPath(); if (type === 'tunnel_in') ctx.arc(0, -GRID_SIZE * 0.1, GRID_SIZE * 0.25, Math.PI, 0); else ctx.arc(0, GRID_SIZE * 0.1, GRID_SIZE * 0.25, 0, Math.PI); ctx.closePath(); ctx.fill();
+  } else if (type === 'hub') {
+    ctx.fillStyle = '#6e40c9'; ctx.strokeStyle = '#a371f7'; ctx.lineWidth = 2;
+    ctx.fillRect(-GRID_SIZE/2 + 1, -GRID_SIZE/2 + 1, GRID_SIZE - 2, GRID_SIZE - 2); ctx.strokeRect(-GRID_SIZE/2 + 1, -GRID_SIZE/2 + 1, GRID_SIZE - 2, GRID_SIZE - 2);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, GRID_SIZE * 0.2, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // Wskaźnik BRAKU PRĄDU dla zaawansowanych maszyn (Lakiernia, Mieszalnik, Syntezator od Poz. 6)
   if (bObj && ['painter', 'mixer', 'synthesizer'].includes(type)) {
     const needsPower = type !== 'synthesizer' || (window.Factory.state.currentLvlIndex >= 5);
     if (needsPower && !bObj.isPowered) {
@@ -170,17 +173,5 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     }
   }
 
-  ctx.restore();
-};
-  }
-  } else if (type === 'tunnel_in' || type === 'tunnel_out') {
-    ctx.fillStyle = '#382554'; ctx.strokeStyle = '#8957e5'; ctx.lineWidth = 2;
-    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-    ctx.fillStyle = '#d2a8ff'; ctx.beginPath(); if (type === 'tunnel_in') ctx.arc(0, -GRID_SIZE * 0.1, GRID_SIZE * 0.25, Math.PI, 0); else ctx.arc(0, GRID_SIZE * 0.1, GRID_SIZE * 0.25, 0, Math.PI); ctx.closePath(); ctx.fill();
-  } else if (type === 'hub') {
-    ctx.fillStyle = '#6e40c9'; ctx.strokeStyle = '#a371f7'; ctx.lineWidth = 2;
-    ctx.fillRect(-GRID_SIZE/2 + 1, -GRID_SIZE/2 + 1, GRID_SIZE - 2, GRID_SIZE - 2); ctx.strokeRect(-GRID_SIZE/2 + 1, -GRID_SIZE/2 + 1, GRID_SIZE - 2, GRID_SIZE - 2);
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, GRID_SIZE * 0.2, 0, Math.PI * 2); ctx.stroke();
-  }
   ctx.restore();
 };
