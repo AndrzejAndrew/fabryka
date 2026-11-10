@@ -80,7 +80,7 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     return;
   }
 
-  if (type === 'ark') {
+  if (type === 'ark_shipyard' || type === 'ark') {
     const px = gx * GRID_SIZE; const py = gy * GRID_SIZE;
     const sz = GRID_SIZE * 3;
     const cores = bObj ? (bObj.arkCoresDelivered || 0) : 0;
@@ -88,21 +88,25 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     const pct = Math.min(100, Math.floor(((Math.min(50, cores) / 50) * 0.6 + (cells / 30) * 0.4) * 100));
 
     ctx.save(); ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#161b22'; ctx.strokeStyle = pct >= 100 ? '#3fb950' : '#a371f7'; ctx.lineWidth = 3;
+    ctx.fillStyle = '#111827'; ctx.strokeStyle = pct >= 100 ? '#3fb950' : '#38bdf8'; ctx.lineWidth = 3;
     ctx.fillRect(px + 2, py + 2, sz - 4, sz - 4);
     ctx.strokeRect(px + 2, py + 2, sz - 4, sz - 4);
 
     // Okrąg platformy startowej Arki
-    ctx.strokeStyle = 'rgba(163, 113, 247, 0.45)'; ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(px + sz / 2, py + sz / 2 - 10, sz * 0.3, 0, Math.PI * 2); ctx.stroke();
 
     // Sylwetka Rakiety / Arki
-    ctx.fillStyle = pct >= 100 ? '#3fb950' : '#58a6ff';
+    ctx.fillStyle = pct >= 100 ? '#3fb950' : '#38bdf8';
     ctx.beginPath();
     ctx.moveTo(px + sz / 2, py + 18);
     ctx.lineTo(px + sz / 2 + 16, py + sz / 2 + 6);
     ctx.lineTo(px + sz / 2 - 16, py + sz / 2 + 6);
-    ctx.closePath(); ctx.fill();
+    ctx.closePath(); 
+    ctx.globalAlpha = 0.2 + 0.8 * (pct / 100);
+    ctx.fill();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
 
     // Pasek postępu budowy na dole Stoczni 3x3
     ctx.fillStyle = '#0d1117';
@@ -226,60 +230,7 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     ctx.fillRect(-GRID_SIZE/2 + 1, -GRID_SIZE/2 + 1, GRID_SIZE - 2, GRID_SIZE - 2); ctx.strokeRect(-GRID_SIZE/2 + 1, -GRID_SIZE/2 + 1, GRID_SIZE - 2, GRID_SIZE - 2);
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, GRID_SIZE * 0.2, 0, Math.PI * 2); ctx.stroke();
   }
-} else if (type === 'foundry') {
-    // KUŹNIA PREFABRYKATÓW 2x1
-    ctx.fillStyle = '#3b2314'; ctx.strokeStyle = '#ffa657'; ctx.lineWidth = 2;
-    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4);
-    ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE * 2 - 4, GRID_SIZE - 4);
-    // Lewy wlot: ikona Gwiazdy
-    ctx.fillStyle = '#fadb14';
-    ctx.beginPath(); ctx.arc(0, GRID_SIZE * 0.22, 5, 0, Math.PI * 2); ctx.fill();
-    // Prawy wlot: ikona Kształtu
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
-    ctx.strokeRect(GRID_SIZE - 5, GRID_SIZE * 0.16, 10, 10);
-    // Środek: symbol stalowej sztaby / zębatki 🔩
-    ctx.fillStyle = '#ffa657';
-    ctx.fillRect(GRID_SIZE * 0.25, -8, GRID_SIZE * 0.5, 12);
-    // Prawy wylot: zielona kropka Żużla
-    ctx.fillStyle = '#3fb950';
-    ctx.beginPath(); ctx.arc(GRID_SIZE, -14, 4, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'ark_shipyard') {
-    // STOCZNIA ARKI 3x3 (9 pól!)
-    ctx.rotate(-dirObj.angle); // Stocznia 3x3 zawsze rysowana prosto
-    const totalW = GRID_SIZE * 3;
-    ctx.fillStyle = '#111827'; ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3;
-    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, totalW - 4, totalW - 4);
-    ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, totalW - 4, totalW - 4);
 
-    // Lądowisko w centrum 3x3
-    const centerX = GRID_SIZE; const centerY = GRID_SIZE;
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(centerX, centerY, GRID_SIZE * 1.1, 0, Math.PI * 2); ctx.stroke();
-
-    // Postęp budowy Arki
-    const { state, LEVELS } = window.Factory;
-    const req = LEVELS[LEVELS.length - 1].requiredCount || 60;
-    const prog = (state.currentLvlIndex >= LEVELS.length - 1) ? state.currentLvlProgress : 0;
-    const pct = Math.min(1, prog / req);
-
-    // Rysowanie kadłuba statku Arki zależnie od % ukończenia
-    ctx.fillStyle = pct >= 1 ? '#fadb14' : '#38bdf8';
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY - GRID_SIZE * 0.9);
-    ctx.lineTo(centerX + GRID_SIZE * 0.65, centerY + GRID_SIZE * 0.7);
-    ctx.lineTo(centerX, centerY + GRID_SIZE * 0.4);
-    ctx.lineTo(centerX - GRID_SIZE * 0.65, centerY + GRID_SIZE * 0.7);
-    ctx.closePath();
-    ctx.globalAlpha = 0.2 + 0.8 * pct;
-    ctx.fill();
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
-
-    // Napis postępu na Stoczni
-    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(`ARKA: ${Math.floor(pct * 100)}%`, centerX, centerY + GRID_SIZE * 1.05);
-	
   if (bObj && ['painter', 'mixer', 'synthesizer'].includes(type)) {
     const needsPower = type !== 'synthesizer' || (window.Factory.state.currentLvlIndex >= 5);
     if (needsPower && !bObj.isPowered) {
@@ -297,6 +248,6 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
       ctx.restore();
     }
   }
-	if (bObj && ['painter', 'mixer', 'synthesizer', 'foundry', 'ark_shipyard'].includes(type)) {
+
   ctx.restore();
 };

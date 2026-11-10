@@ -443,18 +443,19 @@ const alloyDisplay = document.getElementById('alloyDisplay');
 
     if (nextCell.type === 'tunnel_in') return !nextCell.storedShape && !nextCell.storedDye && !nextCell.hasWasteStored;
     return false;
-	// Stocznia Arki 3x3 przyjmuje dowolne kształty (byle nie barwnik i nie żużel)
-if (nextCell.type === 'ark_shipyard' || nextCell.type === 'ark_shipyard_sec') {
-  return !item.isDye && !item.isWaste;
-}
-// Kuźnia 2x1: lewy kafel przyjmuje Gwiazdę, prawy (_sec) dowolny kształt
-if (nextCell.type === 'foundry') {
-  return !item.isDye && !item.isWaste && isFullShapeOfType(item.shape, 'star') && !nextCell.storedLeft;
-}
-if (nextCell.type === 'foundry_sec') {
-  const main = state.grid.get(nextCell.partnerKey);
-  return main && !item.isDye && !item.isWaste && !main.storedRight;
-}
+    
+    // Stocznia Arki 3x3 przyjmuje dowolne kształty (byle nie barwnik i nie żużel)
+    if (nextCell.type === 'ark_shipyard' || nextCell.type === 'ark_shipyard_sec') {
+      return !item.isDye && !item.isWaste;
+    }
+    // Kuźnia 2x1: lewy kafel przyjmuje Gwiazdę, prawy (_sec) dowolny kształt
+    if (nextCell.type === 'foundry') {
+      return !item.isDye && !item.isWaste && isFullShapeOfType(item.shape, 'star') && !nextCell.storedLeft;
+    }
+    if (nextCell.type === 'foundry_sec') {
+      const main = state.grid.get(nextCell.partnerKey);
+      return main && !item.isDye && !item.isWaste && !main.storedRight;
+    }
   }
 
   function updateUI() {
@@ -544,14 +545,14 @@ if (nextCell.type === 'foundry_sec') {
     }
 	if (alloyDisplay) alloyDisplay.innerText = `${state.alloyPlates || 0} 🔩 Prefabrykatów`;
 
-if (state.currentLvlIndex >= 6) {
-  const fBtn = document.getElementById('tool-foundry');
-  if (fBtn) { fBtn.disabled = false; const sc = fBtn.querySelector('.shortcut'); if (sc) sc.innerText = '[F]'; }
-}
-if (state.currentLvlIndex >= 7) {
-  const aBtn = document.getElementById('tool-ark_shipyard');
-  if (aBtn) { aBtn.disabled = false; const sc = aBtn.querySelector('.shortcut'); if (sc) sc.innerText = '[G]'; }
-}
+    if (state.currentLvlIndex >= 6) {
+      const fBtn = document.getElementById('tool-foundry');
+      if (fBtn) { fBtn.disabled = false; const sc = fBtn.querySelector('.shortcut'); if (sc) sc.innerText = '[F]'; }
+    }
+    if (state.currentLvlIndex >= 7) {
+      const aBtn = document.getElementById('tool-ark_shipyard');
+      if (aBtn) { aBtn.disabled = false; const sc = aBtn.querySelector('.shortcut'); if (sc) sc.innerText = '[G]'; }
+    }
   }
 
   function selectTool(name) {
@@ -644,24 +645,26 @@ if (state.currentLvlIndex >= 7) {
         if (cell.type === 'cutter' && !item.isDye && !item.isWaste && !cell.storedShape) { cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
         if (cell.type === 'rotator' && !item.isDye && !item.isWaste && !cell.storedShape) { cell.storedShape = item.shape; state.beltItems.splice(i, 1); continue; }
 
-        if (['merger', 'painter', 'mixer', 'synthesizer'].includes(cell.type)) {
+        if (['merger', 'painter', 'mixer', 'synthesizer', 'foundry'].includes(cell.type)) {
           if (!cell.storedLeft && !item.isWaste) {
             if (cell.type === 'mixer' && item.isDye) cell.storedLeft = item.dyeColor;
             else if (cell.type === 'painter' && !item.isDye) cell.storedLeft = item.shape;
             else if (cell.type === 'synthesizer' && !item.isDye && isFullShapeOfType(item.shape, 'circle')) cell.storedLeft = item.shape;
+            else if (cell.type === 'foundry' && !item.isDye && isFullShapeOfType(item.shape, 'star')) cell.storedLeft = item.shape;
             else if (cell.type === 'merger' && !item.isDye) cell.storedLeft = item.shape;
             else continue;
             state.beltItems.splice(i, 1); continue;
           }
         }
 
-        if (['merger_sec', 'painter_sec', 'mixer_sec', 'synthesizer_sec'].includes(cell.type)) {
+        if (['merger_sec', 'painter_sec', 'mixer_sec', 'synthesizer_sec', 'foundry_sec'].includes(cell.type)) {
           const main = state.grid.get(cell.partnerKey);
           if (main && !main.storedRight && !item.isWaste) {
             const baseType = main.type;
             if (baseType === 'mixer' && item.isDye) main.storedRight = item.dyeColor;
             else if (baseType === 'painter' && item.isDye) main.storedRight = item.dyeColor;
             else if (baseType === 'synthesizer' && !item.isDye && isFullShapeOfType(item.shape, 'square')) main.storedRight = item.shape;
+            else if (baseType === 'foundry' && !item.isDye) main.storedRight = item.shape;
             else if (baseType === 'merger' && !item.isDye) main.storedRight = item.shape;
             else continue;
             state.beltItems.splice(i, 1); continue;
@@ -682,31 +685,7 @@ if (state.currentLvlIndex >= 7) {
           else cell.storedShape = item.shape;
           state.beltItems.splice(i, 1); continue;
         }
-if (['merger', 'painter', 'mixer', 'synthesizer', 'foundry'].includes(cell.type)) {
-  if (!cell.storedLeft && !item.isWaste) {
-    if (cell.type === 'mixer' && item.isDye) cell.storedLeft = item.dyeColor;
-    else if (cell.type === 'painter' && !item.isDye) cell.storedLeft = item.shape;
-    else if (cell.type === 'synthesizer' && !item.isDye && isFullShapeOfType(item.shape, 'circle')) cell.storedLeft = item.shape;
-    else if (cell.type === 'foundry' && !item.isDye && isFullShapeOfType(item.shape, 'star')) cell.storedLeft = item.shape;
-    else if (cell.type === 'merger' && !item.isDye) cell.storedLeft = item.shape;
-    else continue;
-    state.beltItems.splice(i, 1); continue;
-  }
 
-
-if (['merger_sec', 'painter_sec', 'mixer_sec', 'synthesizer_sec', 'foundry_sec'].includes(cell.type)) {
-  const main = state.grid.get(cell.partnerKey);
-  if (main && !main.storedRight && !item.isWaste) {
-    const baseType = main.type;
-    if (baseType === 'mixer' && item.isDye) main.storedRight = item.dyeColor;
-    else if (baseType === 'painter' && item.isDye) main.storedRight = item.dyeColor;
-    else if (baseType === 'synthesizer' && !item.isDye && isFullShapeOfType(item.shape, 'square')) main.storedRight = item.shape;
-    else if (baseType === 'foundry' && !item.isDye) main.storedRight = item.shape;
-    else if (baseType === 'merger' && !item.isDye) main.storedRight = item.shape;
-    else continue;
-    state.beltItems.splice(i, 1); continue;
-  }
-}
         if (cell.type === 'belt') {
           const dir = DIRS[cell.rot] || DIRS[0];
           const nx = item.curX + dir.x;
