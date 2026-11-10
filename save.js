@@ -2,7 +2,6 @@ window.Factory = window.Factory || {};
 
 const SAVE_KEY = 'schematic_factory_save_v4';
 const LEGACY_SAVE_KEY = 'schematic_factory_save_v3';
-const DUAL_MACHINES = ['cutter', 'merger', 'painter', 'mixer', 'synthesizer', 'splitter'];
 
 window.Factory.saveGame = function() {
   const { state } = window.Factory;
@@ -10,13 +9,8 @@ window.Factory.saveGame = function() {
     const serializedGrid = Array.from(state.grid.entries())
       .filter(([, b]) => b.type !== 'hub' && !b.type.endsWith('_sec'))
       .map(([key, b]) => ({
-        key,
-        type: b.type,
-        x: b.x,
-        y: b.y,
-        rot: b.rot || 0,
-        fuelTimer: b.fuelTimer || 0,
-        storedWaste: b.storedWaste || 0
+        key, type: b.type, x: b.x, y: b.y, rot: b.rot || 0,
+        fuelTimer: b.fuelTimer || 0, storedWaste: b.storedWaste || 0
       }));
     const serializedPatches = Array.from(state.patches.entries()).map(([key, p]) => ({ key, kind: p.kind, subType: p.subType }));
     const serializedRocks = Array.from(state.rocks.values());
@@ -25,6 +19,7 @@ window.Factory.saveGame = function() {
     const data = {
       version: 4, mapSeed: state.mapSeed, lastSaveTime: state.lastSaveTime,
       sciencePoints: state.sciencePoints, matter: state.matter,
+      alloyPlates: state.alloyPlates || 0,
       beltSpeedLvl: state.beltSpeedLvl, minerSpeedLvl: state.minerSpeedLvl,
       hubSize: state.hubSize || 2, rockDrillUnlocked: !!state.rockDrillUnlocked,
       currentLvlIndex: state.currentLvlIndex, currentLvlProgress: state.currentLvlProgress,
@@ -37,7 +32,7 @@ window.Factory.saveGame = function() {
 };
 
 window.Factory.loadGame = function() {
-  const { state, LEVELS, DIRS, initInitialWorld, rebuildHub } = window.Factory;
+  const { state, LEVELS, initInitialWorld, rebuildHub, getExtraTiles } = window.Factory;
   try {
     let raw = localStorage.getItem(SAVE_KEY); let isLegacy = false;
     if (!raw) { raw = localStorage.getItem(LEGACY_SAVE_KEY); isLegacy = true; }
@@ -47,6 +42,7 @@ window.Factory.loadGame = function() {
 
     state.sciencePoints = Number(data.sciencePoints) || 0;
     state.matter = Number(data.matter) || 200;
+    state.alloyPlates = Number(data.alloyPlates) || 0;
     state.beltSpeedLvl = Number(data.beltSpeedLvl) || 1;
     state.minerSpeedLvl = Number(data.minerSpeedLvl) || 1;
     state.hubSize = Number(data.hubSize) || 2;
@@ -74,23 +70,26 @@ window.Factory.loadGame = function() {
       data.grid.forEach(b => {
         if (b.type === 'hub' || b.type.endsWith('_sec')) return;
         state.rocks.delete(b.key);
+        const rot = b.rot || 0;
+        const extra = getExtraTiles ? getExtraTiles(b.type, b.x, b.y, rot) : [];
 
-        if (DUAL_MACHINES.includes(b.type)) {
-          const rot = b.rot || 0; const right = DIRS[(rot + 1) % 4];
-          const secX = b.x + right.x; const secY = b.y + right.y;
-          const secKey = `${secX},${secY}`;
-          state.rocks.delete(secKey);
-
+        if (extra.length > 0) {
+          const partnerKeys = extra.map(t => `${t.x},${t.y}`);
           state.grid.set(b.key, {
-            type: b.type, x: b.x, y: b.y, rot, partnerKey: secKey,
+            type: b.type, x: b.x, y: b.y, rot,
+            partnerKey: partnerKeys[0], partnerKeys,
             timer: 0, storedShape: null, storedLeft: null, storedRight: null, storedItem: null
           });
-          state.grid.set(secKey, {
-            type: b.type + '_sec', x: secX, y: secY, rot, partnerKey: b.key, mainX: b.x, mainY: b.y
+          extra.forEach(t => {
+            const tk = `${t.x},${t.y}`;
+            state.rocks.delete(tk);
+            state.grid.set(tk, {
+              type: b.type + '_sec', x: t.x, y: t.y, rot, partnerKey: b.key, mainX: b.x, mainY: b.y
+            });
           });
         } else {
           state.grid.set(b.key, {
-            type: b.type, x: b.x, y: b.y, rot: b.rot || 0,
+            type: b.type, x: b.x, y: b.y, rot,
             timer: 0, fuelTimer: Number(b.fuelTimer) || 0,
             storedWaste: Number(b.storedWaste) || 0,
             storedShape: null, storedDye: null, hasWasteStored: false

@@ -1,32 +1,48 @@
 window.Factory = window.Factory || {};
 
+// Zwraca tablicę dodatkowych kafelków zajmowanych przez maszynę (1 kafel dla 2x1, 8 kafli dla 3x3)
+window.Factory.getExtraTiles = function(type, gx, gy, rot) {
+  const dualTileMachines = ['cutter', 'merger', 'painter', 'mixer', 'synthesizer', 'splitter', 'foundry'];
+  if (dualTileMachines.includes(type)) {
+    const { DIRS } = window.Factory;
+    const rightDir = DIRS[(rot + 1) % 4];
+    return [{ x: gx + rightDir.x, y: gy + rightDir.y }];
+  }
+  if (type === 'ark_shipyard') {
+    const tiles = [];
+    for (let dx = 0; dx < 3; dx++) {
+      for (let dy = 0; dy < 3; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        tiles.push({ x: gx + dx, y: gy + dy });
+      }
+    }
+    return tiles;
+  }
+  return [];
+};
+
+// Zachowanie kompatybilności ze starszym wywołaniem
 window.Factory.getSecondaryTile = function(type, gx, gy, rot) {
-  // Teraz aż 6 maszyn to maszyny wielkopowierzchniowe (2x1)
-  const dualTileMachines = ['cutter', 'merger', 'painter', 'mixer', 'synthesizer', 'splitter'];
-  if (!dualTileMachines.includes(type)) return null;
-  
-  const { DIRS } = window.Factory;
-  const rightDir = DIRS[(rot + 1) % 4];
-  return {
-    x: gx + rightDir.x,
-    y: gy + rightDir.y
-  };
+  const extra = window.Factory.getExtraTiles(type, gx, gy, rot);
+  return extra.length === 1 ? extra[0] : null;
 };
 
 window.Factory.setupInput = function(canvas, onToolSelect) {
-  const { state, GRID_SIZE, getSecondaryTile } = window.Factory;
+  const { state, GRID_SIZE, getExtraTiles } = window.Factory;
 
   state.rocks = state.rocks || new Set();
   state.grid = state.grid || new Map();
   state.patches = state.patches || new Map();
   state.beltItems = state.beltItems || [];
   state.matter = state.matter || 200;
+  state.alloyPlates = state.alloyPlates || 0;
 
-const COSTS = {
-    belt: 1, miner: 15, cutter: 30, rotator: 20, merger: 40, 
-    painter: 50, mixer: 60, synthesizer: 100, generator: 150, 
+  const COSTS = {
+    belt: 1, miner: 15, cutter: 30, rotator: 20, merger: 40,
+    painter: 50, mixer: 60, synthesizer: 100, generator: 150,
     splitter: 10, tunnel_in: 25, tunnel_out: 25,
-    incinerator: 80, landfill: 20
+    incinerator: 80, landfill: 20,
+    foundry: 120, ark_shipyard: 500
   };
 
   let isMouseDown = false; let isRightMouseDown = false;
@@ -45,7 +61,9 @@ const COSTS = {
     };
   }
 
-  function worldToGrid(wx, wy) { return { x: Math.floor(wx / GRID_SIZE), y: Math.floor(wy / GRID_SIZE) }; }
+  function worldToGrid(wx, wy) {
+    return { x: Math.floor(wx / GRID_SIZE), y: Math.floor(wy / GRID_SIZE) };
+  }
 
   function calculateBeltPath(start, end) {
     const path = []; let currX = start.x; let currY = start.y;
@@ -62,20 +80,33 @@ const COSTS = {
     const key = `${gx},${gy}`;
     const existing = state.grid.get(key);
     if (!existing || existing.type === 'hub') return;
-    if (existing.partnerKey) {
-      const [px, py] = existing.partnerKey.split(',').map(Number);
-      state.grid.delete(existing.partnerKey);
+
+    // Jeśli kliknięto w segment pomocniczy (_sec), znajdź główny kafelek
+    const mainKey = existing.type.endsWith('_sec') ? existing.partnerKey : key;
+    const mainCell = state.grid.get(mainKey) || existing;
+
+    // Usuń wszystkie powiązane kafelki (dla 2x1 oraz 3x3)
+    if (Array.isArray(mainCell.partnerKeys)) {
+      mainCell.partnerKeys.forEach(pk => {
+        const [px, py] = pk.split(',').map(Number);
+        state.grid.delete(pk);
+        state.beltItems = state.beltItems.filter(i => i.curX !== px || i.curY !== py);
+      });
+    } else if (mainCell.partnerKey) {
+      const [px, py] = mainCell.partnerKey.split(',').map(Number);
+      state.grid.delete(mainCell.partnerKey);
       state.beltItems = state.beltItems.filter(i => i.curX !== px || i.curY !== py);
     }
-    state.grid.delete(key);
-    state.beltItems = state.beltItems.filter(i => i.curX !== gx || i.curY !== gy);
+
+    const [mx, my] = mainKey.split(',').map(Number);
+    state.grid.delete(mainKey);
+    state.beltItems = state.beltItems.filter(i => i.curX !== mx || i.curY !== my);
   }
 
   function applySingleTool(gx, gy) {
     const key = `${gx},${gy}`;
     if (state.currentTool === 'delete') {
       const cell = state.grid.get(key);
-      // BLOKADA: Nie można usunąć Wysypiska, jeśli zalega na nim Żużel!
       if (cell && cell.type === 'landfill' && (cell.storedWaste || 0) > 0) {
         const hintEl = document.getElementById('contextHint');
         if (hintEl) {
@@ -84,43 +115,65 @@ const COSTS = {
         return;
       }
 
-      if (cell && cell.type !== 'hub' && !cell.type.endsWith('_sec')) {
-         state.matter += Math.floor((COSTS[cell.type] || 0) / 2);
+      if (cell && cell.type !== 'hub') {
+        const baseType = cell.type.endsWith('_sec') ? cell.type.replace('_sec', '') : cell.type;
+        state.matter += Math.floor((COSTS[baseType] || 0) / 2);
       }
       if (state.rocks && state.rocks.has(key)) {
         if (state.rockDrillUnlocked) state.rocks.delete(key);
         return;
       }
-      removeBuildingAt(gx, gy); return;
+      removeBuildingAt(gx, gy);
+      return;
     }
 
     const cost = COSTS[state.currentTool] || 0;
     if (state.matter < cost) return;
 
+    // Stocznia Arki 3x3 wymaga dodatkowo 20 Prefabrykatów z Kuźni!
+    if (state.currentTool === 'ark_shipyard' && (state.alloyPlates || 0) < 20) {
+      const hintEl = document.getElementById('contextHint');
+      if (hintEl) {
+        hintEl.innerHTML = `<span style="color:#f85149; font-weight:bold;">⚠️ Brak Prefabrykatów!</span> Stocznia Arki 3x3 wymaga <b>500 🧱 Materii</b> oraz <b>20 🔩 Prefabrykatów</b> (masz: ${state.alloyPlates || 0}/20). Wyprodukuj je w <b>Kuźni [F]</b>!`;
+      }
+      return;
+    }
+
     if (state.rocks && state.rocks.has(key)) return;
     const existing = state.grid.get(key);
     if (existing && existing.type === 'hub') return;
 
-    const secTile = getSecondaryTile(state.currentTool, gx, gy, state.currentRotation);
-    if (secTile) {
-      const secKey = `${secTile.x},${secTile.y}`;
-      if (state.rocks && state.rocks.has(secKey)) return;
-      const existingSec = state.grid.get(secKey);
-      if (existingSec && existingSec.type === 'hub') return;
+    const extraTiles = getExtraTiles(state.currentTool, gx, gy, state.currentRotation);
+    if (extraTiles.length > 0) {
+      for (const t of extraTiles) {
+        const tk = `${t.x},${t.y}`;
+        if (state.rocks && state.rocks.has(tk)) return;
+        const ex = state.grid.get(tk);
+        if (ex && ex.type === 'hub') return;
+      }
 
       removeBuildingAt(gx, gy);
-      removeBuildingAt(secTile.x, secTile.y);
-      state.matter -= cost; 
-      
+      extraTiles.forEach(t => removeBuildingAt(t.x, t.y));
+
+      state.matter -= cost;
+      if (state.currentTool === 'ark_shipyard') state.alloyPlates -= 20;
+
+      const partnerKeys = extraTiles.map(t => `${t.x},${t.y}`);
       state.grid.set(key, {
         type: state.currentTool,
         x: gx, y: gy, rot: state.currentRotation,
-        partnerKey: secKey, timer: 0, storedShape: null, storedLeft: null, storedRight: null
+        partnerKey: partnerKeys[0],
+        partnerKeys: partnerKeys,
+        timer: 0, storedShape: null, storedLeft: null, storedRight: null
       });
-      state.grid.set(secKey, {
-        type: state.currentTool + '_sec',
-        x: secTile.x, y: secTile.y, rot: state.currentRotation,
-        partnerKey: key, mainX: gx, mainY: gy
+
+      extraTiles.forEach(t => {
+        const tk = `${t.x},${t.y}`;
+        state.grid.set(tk, {
+          type: state.currentTool + '_sec',
+          x: t.x, y: t.y, rot: state.currentRotation,
+          partnerKey: key, mainX: gx, mainY: gy
+        });
       });
       return;
     }
@@ -204,9 +257,14 @@ const COSTS = {
     else if (k === '9') onToolSelect('generator'); else if (k === '0') onToolSelect('splitter');
     else if (k === 'q') onToolSelect('tunnel_in'); else if (k === 'e') onToolSelect('tunnel_out');
     else if (k === 'x' || e.key === 'Delete' || e.key === 'Backspace') onToolSelect('delete');
-	else if (k === 'c') onToolSelect('incinerator');
+    else if (k === 'c') onToolSelect('incinerator');
     else if (k === 'v') onToolSelect('landfill');
+    else if (k === 'f') onToolSelect('foundry');
+    else if (k === 'g') onToolSelect('ark_shipyard');
   });
 
-  return { getDragPreview: () => (isMouseDown && state.currentTool === 'belt' && dragStart && dragEnd) ? calculateBeltPath(dragStart, dragEnd) : null, getHoverTile: () => hoverGrid };
+  return {
+    getDragPreview: () => (isMouseDown && state.currentTool === 'belt' && dragStart && dragEnd) ? calculateBeltPath(dragStart, dragEnd) : null,
+    getHoverTile: () => hoverGrid
+  };
 };

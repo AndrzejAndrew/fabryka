@@ -93,20 +93,32 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     }
   });
 
-  // Jeśli główny kafel maszyny 2x1 lub jego drugi segment (_sec) jest w zasięgu prądu, cała maszyna ma prąd!
+  // Przekazywanie prądu pomiędzy segmentami maszyn 2x1 oraz Stoczni 3x3
   state.grid.forEach(b => {
-    if (b.partnerKey) {
+    if (Array.isArray(b.partnerKeys)) {
+      const anyPowered = b.isPowered || b.partnerKeys.some(pk => {
+        const p = state.grid.get(pk);
+        return p && p.isPowered;
+      });
+      if (anyPowered) {
+        b.isPowered = true;
+        b.partnerKeys.forEach(pk => {
+          const p = state.grid.get(pk);
+          if (p) p.isPowered = true;
+        });
+      }
+    } else if (b.partnerKey) {
       const partner = state.grid.get(b.partnerKey);
       if (partner && partner.isPowered) b.isPowered = true;
     }
   });
 
-  // Czy gracz ma już odblokowane generatory prądu? (od Poziomu 6, czyli currentLvlIndex >= 5)
   const powerRequiredForHeavy = state.currentLvlIndex >= 5;
+  let changed = false;
 
   // --- KROK 2: LOGIKA MASZYN ---
   state.grid.forEach(b => {
-    // 1. Ekstraktor (pod prądem 2.5x szybciej!)
+    // 1. Ekstraktor
     if (b.type === 'miner') {
       const patch = state.patches.get(`${b.x},${b.y}`);
       if (!patch) return;
@@ -133,12 +145,11 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
-    // 2. WYSYPISKO (Landfill) - Jeśli z przodu podłączono taśmociąg, wypompowuje Żużel (np. do Spalarni!)
+    // 2. WYSYPISKO (Landfill)
     if (b.type === 'landfill' && (b.storedWaste || 0) > 0) {
       const fwd = DIRS[b.rot || 0];
       const tx = b.x + fwd.x; const ty = b.y + fwd.y;
       const target = state.grid.get(`${tx},${ty}`);
-      // Wypompowuje tylko wtedy, gdy przed wylotem Wysypiska postawiono taśmociąg lub Spalarnię
       if (target && (target.type === 'belt' || target.type === 'incinerator')) {
         const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
         if (!occ) {
@@ -203,9 +214,9 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
-    // 6. Lakiernia 2x1 (WYMAGA PRĄDU!)
+    // 6. Lakiernia 2x1
     if (b.type === 'painter' && b.storedLeft && b.storedRight) {
-      if (!b.isPowered) return; // Bez prądu Lakiernia stoi!
+      if (!b.isPowered) return;
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
       const outMain = { x: b.x + fwd.x, y: b.y + fwd.y };
       const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y };
@@ -223,9 +234,9 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
-    // 7. Mieszalnik 2x1 (WYMAGA PRĄDU!)
+    // 7. Mieszalnik 2x1
     if (b.type === 'mixer' && b.storedLeft && b.storedRight) {
-      if (!b.isPowered) return; // Bez prądu Mieszalnik stoi!
+      if (!b.isPowered) return;
       const fwd = DIRS[b.rot];
       const tx = b.x + fwd.x; const ty = b.y + fwd.y;
       const target = state.grid.get(`${tx},${ty}`);
@@ -237,9 +248,9 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
-    // 8. Syntezator 2x1 (Od Poziomu 6 WYMAGA PRĄDU; na Poziomie 5 bez prądu działa 4x wolniej)
+    // 8. Syntezator 2x1
     if (b.type === 'synthesizer' && b.storedLeft && b.storedRight) {
-      if (powerRequiredForHeavy && !b.isPowered) return; // Od Poz. 6 wymaga zasilania!
+      if (powerRequiredForHeavy && !b.isPowered) return;
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
       const outMain = { x: b.x + fwd.x, y: b.y + fwd.y };
       const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y };
@@ -262,7 +273,27 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
-    // 9. Rozdzielacz 2x1
+    // 9. NOWOŚĆ: KUŹNIA PREFABRYKATÓW 2x1 (Foundry)
+    // Lewy wlot: Gwiazda ⭐ | Prawy wlot: dowolny Kształt -> Produkuje +1 🔩 Prefabrykat do zasobów i wyrzuca Żużel prawym torem!
+    if (b.type === 'foundry' && b.storedLeft && b.storedRight) {
+      if (!b.isPowered) return; // Kuźnia wymaga zasilania prądem!
+      const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
+      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y };
+      const targetSec = state.grid.get(`${outSec.x},${outSec.y}`);
+      const occSec = state.beltItems.some(i => i.curX === outSec.x && i.curY === outSec.y);
+
+      // Wymaga drożnego odbioru Żużla z prawego wylotu!
+      if (targetSec && !occSec) {
+        const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
+        state.alloyPlates = (state.alloyPlates || 0) + Math.max(1, Math.round(1 * prestigeMult));
+        state.beltItems.push({ curX: outSec.x, curY: outSec.y, isDye: false, isWaste: true, shape: null, progress: 0 });
+        b.storedLeft = null;
+        b.storedRight = null;
+        changed = true;
+      }
+    }
+
+    // 10. Rozdzielacz 2x1
     if (b.type === 'splitter' && b.storedItem) {
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
       const mainOut = { x: b.x + fwd.x, y: b.y + fwd.y };
@@ -282,7 +313,7 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
-    // 10. Tunele
+    // 11. Tunele
     if (b.type === 'tunnel_in' && (b.storedShape || b.storedDye || b.hasWasteStored)) {
       const dir = DIRS[b.rot];
       for (let dist = 1; dist <= 5; dist++) {
@@ -307,17 +338,33 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     }
   });
 
-  // --- KROK 3: WCHŁANIANIE PRZEZ HUB (Żużel ma całkowity zakaz wjazdu!) ---
-  let changed = false;
+  // --- KROK 3: HUB ORAZ STOCZNIA ARKI 3x3 ---
   let gainedMatterTick = 0; let gainedScienceTick = 0;
   const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
 
   for (let i = state.beltItems.length - 1; i >= 0; i--) {
     const item = state.beltItems[i];
     const cell = state.grid.get(`${item.curX},${item.curY}`);
+    if (!cell) continue;
 
-    if (cell && cell.type === 'hub') {
-      if (item.isWaste) continue; // Hub nigdy nie przyjmuje odpadów!
+    // A) STOCZNIA ARKI 3x3 (Przyjmuje docelowe Rdzenie Gwiezdne na Poziomie 8!)
+    if (cell.type === 'ark_shipyard' || cell.type === 'ark_shipyard_sec') {
+      const mainArk = cell.type === 'ark_shipyard' ? cell : state.grid.get(cell.partnerKey);
+      if (!mainArk || !mainArk.isPowered || item.isWaste || item.isDye) continue;
+
+      const curLevel = LEVELS[state.currentLvlIndex];
+      if (curLevel && shapesEqual(item.shape, curLevel.targetShape)) {
+        state.currentLvlProgress++;
+        gainedScienceTick += Math.floor(15 * prestigeMult);
+        changed = true;
+      }
+      state.beltItems.splice(i, 1);
+      continue;
+    }
+
+    // B) GŁÓWNY HUB (Poziomy 1-7 zaliczane w Hubie; na Poziomie 8 Hub daje tylko Materię/Naukę, a budowa Arki idzie w Stoczni 3x3!)
+    if (cell.type === 'hub') {
+      if (item.isWaste) continue;
 
       const hasStar = !item.isDye && Array.isArray(item.shape) && item.shape.some(q => q && q.type === 'star');
       const sPoints = Math.floor((hasStar ? 5 : 1) * prestigeMult);
@@ -325,16 +372,14 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
 
       gainedScienceTick += sPoints; gainedMatterTick += mPoints; changed = true;
 
-      if (!item.isDye) {
+      if (!item.isDye && state.currentLvlIndex < LEVELS.length - 1) {
         const curLevel = LEVELS[state.currentLvlIndex];
         if (curLevel && shapesEqual(item.shape, curLevel.targetShape)) {
           state.currentLvlProgress++;
           if (state.currentLvlProgress >= curLevel.requiredCount) {
             const finishedLevel = curLevel;
-            if (state.currentLvlIndex < LEVELS.length - 1) {
-              state.currentLvlIndex++; state.currentLvlProgress = 0;
-              if (onLevelUp) onLevelUp(finishedLevel, LEVELS[state.currentLvlIndex]);
-            }
+            state.currentLvlIndex++; state.currentLvlProgress = 0;
+            if (onLevelUp) onLevelUp(finishedLevel, LEVELS[state.currentLvlIndex]);
           }
         }
       }
