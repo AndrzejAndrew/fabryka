@@ -1,8 +1,98 @@
 window.Factory = window.Factory || {};
 
-function rotateShapeRight(shape) { return [shape[3], shape[0], shape[1], shape[2]]; }
-function combineShapes(a, b) { const res = [null, null, null, null]; for (let i = 0; i < 4; i++) { res[i] = a[i] || b[i] || null; } return res; }
-function shapesEqual(a, b) { if (!a || !b) return false; for (let i = 0; i < 4; i++) { const qa = a[i]; const qb = b[i]; if (!qa && !qb) continue; if (!qa || !qb) return false; if (qa.type !== qb.type || qa.color !== qb.color) return false; } return true; }
+function rotateShapeRight(shape) {
+  return [shape[3], shape[0], shape[1], shape[2]];
+}
+
+function rotateShape180(shape) {
+  return [shape[2], shape[3], shape[0], shape[1]];
+}
+
+// INTELIGENTNE ŁĄCZENIE W MONTERZE:
+// 1. Jeśli kształty A i B pasują w puste miejsca (nie kolidują) -> skleja je bezpośrednio.
+// 2. Jeśli A i B mają zajęte te same połówki (np. obie to LEWE połówki jak na screenie) ->
+//    automatycznie obraca jeden ze składników o 180° (lub 90°), aby złożyć pełny kształt!
+// 3. Jeśli gracz wrzuci dwa PEŁNE kształty -> bierze lewą połowę z jednego i prawą z drugiego!
+function combineShapes(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+
+  const isFullA = a[0] && a[1] && a[2] && a[3];
+  const isFullB = b[0] && b[1] && b[2] && b[3];
+
+  // Jeśli oba wejścia dostały pełne kształty: zrób hybrydę (Prawa z B, Lewa z A)
+  if (isFullA && isFullB) {
+    return [b[0], b[1], a[2], a[3]];
+  }
+
+  // Sprawdź czy kolidują na tych samych ćwiartkach
+  let hasOverlap = false;
+  for (let i = 0; i < 4; i++) {
+    if (a[i] && b[i]) {
+      hasOverlap = true;
+      break;
+    }
+  }
+
+  // Brak kolizji -> klasyczne sklejenie ćwiartek
+  if (!hasOverlap) {
+    return [
+      a[0] || b[0] || null,
+      a[1] || b[1] || null,
+      a[2] || b[2] || null,
+      a[3] || b[3] || null
+    ];
+  }
+
+  // Jeśli kolidują (np. gracz podał dwie LEWE połówki naraz):
+  // Spróbuj obrócić B o 180 stopni (przerzucić z lewej na prawą stronę)
+  const b180 = rotateShape180(b);
+  let overlap180 = false;
+  for (let i = 0; i < 4; i++) {
+    if (a[i] && b180[i]) overlap180 = true;
+  }
+  if (!overlap180) {
+    return [
+      a[0] || b180[0] || null,
+      a[1] || b180[1] || null,
+      a[2] || b180[2] || null,
+      a[3] || b180[3] || null
+    ];
+  }
+
+  // Spróbuj obrócić B o 90 stopni w prawo
+  const b90 = rotateShapeRight(b);
+  return [
+    a[0] || b90[0] || b[0] || null,
+    a[1] || b90[1] || b[1] || null,
+    a[2] || b90[2] || b[2] || null,
+    a[3] || b90[3] || b[3] || null
+  ];
+}
+
+function exactShapesEqual(a, b) {
+  if (!a || !b) return false;
+  for (let i = 0; i < 4; i++) {
+    const qa = a[i];
+    const qb = b[i];
+    if (!qa && !qb) continue;
+    if (!qa || !qb) return false;
+    if (qa.type !== qb.type || qa.color !== qb.color) return false;
+  }
+  return true;
+}
+
+// Porównuje kształt z celem poziomu (akceptuje także odbicie lewo-prawo przy hybrydach 50/50!)
+function shapesEqual(a, b) {
+  if (exactShapesEqual(a, b)) return true;
+  // Jeśli gracz zbudował hybrydę (Lewa: Kwadrat, Prawa: Koło) zamiast (Prawa: Kwadrat, Lewa: Koło),
+  // a wszystkie 4 ćwiartki są zapełnione (pełna hybryda), również zaliczamy!
+  const isFullTarget = b && b[0] && b[1] && b[2] && b[3];
+  if (isFullTarget && exactShapesEqual(rotateShape180(a), b)) {
+    return true;
+  }
+  return false;
+}
 
 window.Factory.isFullShapeOfType = function(shape, type) { if (!Array.isArray(shape)) return false; return shape.every(q => q && q.type === type); };
 
