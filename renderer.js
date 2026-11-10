@@ -119,17 +119,60 @@ window.Factory.drawBuilding = function(ctx, gx, gy, type, rot, alpha = 1.0, bObj
     // Płomień
     ctx.fillStyle = active ? '#ff4d4f' : '#3b4352';
     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(6, 6); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill();
-  } else if (type === 'landfill') {
-    // --- NOWY BUDYNEK: WYSYPISKO ---
-    ctx.fillStyle = '#2d333b'; ctx.strokeStyle = '#3fb950'; ctx.lineWidth = 2;
-    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-    // Wskaźnik zapełnienia
-    const fillPct = bObj ? (Math.min(100, bObj.storedWaste || 0) / 100) : 0;
-    ctx.fillStyle = 'rgba(63, 185, 80, 0.4)';
+ } else if (type === 'landfill') {
+    const count = bObj ? (bObj.storedWaste || 0) : 0;
+    const isFull = count >= 100;
+    ctx.fillStyle = '#2d333b';
+    ctx.strokeStyle = isFull ? '#f85149' : '#3fb950';
+    ctx.lineWidth = 2;
+    ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+    ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+
+    // Pasek zapełnienia
+    const fillPct = Math.min(100, count) / 100;
+    ctx.fillStyle = isFull ? 'rgba(248, 81, 73, 0.5)' : 'rgba(63, 185, 80, 0.4)';
     const maxH = GRID_SIZE - 8;
     ctx.fillRect(-GRID_SIZE/2 + 4, GRID_SIZE/2 - 4 - (maxH * fillPct), GRID_SIZE - 8, maxH * fillPct);
-    // Ikona beczki
-    ctx.fillStyle = '#3fb950'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+
+    // Strzałka wylotowa (do wypompowywania Żużla do Spalarni)
+    ctx.fillStyle = '#3fb950';
+    ctx.beginPath();
+    ctx.moveTo(0, -GRID_SIZE * 0.42);
+    ctx.lineTo(5, -GRID_SIZE * 0.26);
+    ctx.lineTo(-5, -GRID_SIZE * 0.26);
+    ctx.closePath();
+    ctx.fill();
+
+    // Tekst licznika np. "45" na środku Wysypiska (bez obrotu)
+    ctx.save();
+    ctx.rotate(-dirObj.angle);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${count}`, 0, 2);
+	// Wskaźnik BRAKU PRĄDU dla zaawansowanych maszyn (Lakiernia, Mieszalnik, Syntezator od Poz. 6)
+  if (bObj && ['painter', 'mixer', 'synthesizer'].includes(type)) {
+    const needsPower = type !== 'synthesizer' || (window.Factory.state.currentLvlIndex >= 5);
+    if (needsPower && !bObj.isPowered) {
+      ctx.save();
+      ctx.rotate(-dirObj.angle);
+      ctx.fillStyle = 'rgba(248, 81, 73, 0.9)';
+      ctx.beginPath();
+      ctx.arc(GRID_SIZE * 0.5, -GRID_SIZE * 0.35, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⚡', GRID_SIZE * 0.5, -GRID_SIZE * 0.35);
+      ctx.restore();
+    }
+  }
+
+  ctx.restore();
+};
+  }
   } else if (type === 'tunnel_in' || type === 'tunnel_out') {
     ctx.fillStyle = '#382554'; ctx.strokeStyle = '#8957e5'; ctx.lineWidth = 2;
     ctx.fillRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4); ctx.strokeRect(-GRID_SIZE/2 + 2, -GRID_SIZE/2 + 2, GRID_SIZE - 4, GRID_SIZE - 4);

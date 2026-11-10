@@ -75,6 +75,15 @@ const COSTS = {
     const key = `${gx},${gy}`;
     if (state.currentTool === 'delete') {
       const cell = state.grid.get(key);
+      // BLOKADA: Nie można usunąć Wysypiska, jeśli zalega na nim Żużel!
+      if (cell && cell.type === 'landfill' && (cell.storedWaste || 0) > 0) {
+        const hintEl = document.getElementById('contextHint');
+        if (hintEl) {
+          hintEl.innerHTML = `<span style="color:#f85149; font-weight:bold;">⚠️ Nie można usunąć Wysypiska!</span> W środku zalega <b>${cell.storedWaste}/100 ☣️ Żużla</b>. Wyprowadź go taśmociągiem z przodu Wysypiska do Spalarni!`;
+        }
+        return;
+      }
+
       if (cell && cell.type !== 'hub' && !cell.type.endsWith('_sec')) {
          state.matter += Math.floor((COSTS[cell.type] || 0) / 2);
       }

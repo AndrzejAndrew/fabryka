@@ -8,11 +8,6 @@ function rotateShape180(shape) {
   return [shape[2], shape[3], shape[0], shape[1]];
 }
 
-// INTELIGENTNE ŁĄCZENIE W MONTERZE:
-// 1. Jeśli kształty A i B pasują w puste miejsca (nie kolidują) -> skleja je bezpośrednio.
-// 2. Jeśli A i B mają zajęte te same połówki (np. obie to LEWE połówki jak na screenie) ->
-//    automatycznie obraca jeden ze składników o 180° (lub 90°), aby złożyć pełny kształt!
-// 3. Jeśli gracz wrzuci dwa PEŁNE kształty -> bierze lewą połowę z jednego i prawą z drugiego!
 function combineShapes(a, b) {
   if (!a) return b;
   if (!b) return a;
@@ -20,47 +15,28 @@ function combineShapes(a, b) {
   const isFullA = a[0] && a[1] && a[2] && a[3];
   const isFullB = b[0] && b[1] && b[2] && b[3];
 
-  // Jeśli oba wejścia dostały pełne kształty: zrób hybrydę (Prawa z B, Lewa z A)
   if (isFullA && isFullB) {
     return [b[0], b[1], a[2], a[3]];
   }
 
-  // Sprawdź czy kolidują na tych samych ćwiartkach
   let hasOverlap = false;
   for (let i = 0; i < 4; i++) {
-    if (a[i] && b[i]) {
-      hasOverlap = true;
-      break;
-    }
+    if (a[i] && b[i]) { hasOverlap = true; break; }
   }
 
-  // Brak kolizji -> klasyczne sklejenie ćwiartek
   if (!hasOverlap) {
-    return [
-      a[0] || b[0] || null,
-      a[1] || b[1] || null,
-      a[2] || b[2] || null,
-      a[3] || b[3] || null
-    ];
+    return [a[0] || b[0] || null, a[1] || b[1] || null, a[2] || b[2] || null, a[3] || b[3] || null];
   }
 
-  // Jeśli kolidują (np. gracz podał dwie LEWE połówki naraz):
-  // Spróbuj obrócić B o 180 stopni (przerzucić z lewej na prawą stronę)
   const b180 = rotateShape180(b);
   let overlap180 = false;
   for (let i = 0; i < 4; i++) {
     if (a[i] && b180[i]) overlap180 = true;
   }
   if (!overlap180) {
-    return [
-      a[0] || b180[0] || null,
-      a[1] || b180[1] || null,
-      a[2] || b180[2] || null,
-      a[3] || b180[3] || null
-    ];
+    return [a[0] || b180[0] || null, a[1] || b180[1] || null, a[2] || b180[2] || null, a[3] || b180[3] || null];
   }
 
-  // Spróbuj obrócić B o 90 stopni w prawo
   const b90 = rotateShapeRight(b);
   return [
     a[0] || b90[0] || b[0] || null,
@@ -73,8 +49,7 @@ function combineShapes(a, b) {
 function exactShapesEqual(a, b) {
   if (!a || !b) return false;
   for (let i = 0; i < 4; i++) {
-    const qa = a[i];
-    const qb = b[i];
+    const qa = a[i]; const qb = b[i];
     if (!qa && !qb) continue;
     if (!qa || !qb) return false;
     if (qa.type !== qb.type || qa.color !== qb.color) return false;
@@ -82,19 +57,17 @@ function exactShapesEqual(a, b) {
   return true;
 }
 
-// Porównuje kształt z celem poziomu (akceptuje także odbicie lewo-prawo przy hybrydach 50/50!)
 function shapesEqual(a, b) {
   if (exactShapesEqual(a, b)) return true;
-  // Jeśli gracz zbudował hybrydę (Lewa: Kwadrat, Prawa: Koło) zamiast (Prawa: Kwadrat, Lewa: Koło),
-  // a wszystkie 4 ćwiartki są zapełnione (pełna hybryda), również zaliczamy!
   const isFullTarget = b && b[0] && b[1] && b[2] && b[3];
-  if (isFullTarget && exactShapesEqual(rotateShape180(a), b)) {
-    return true;
-  }
+  if (isFullTarget && exactShapesEqual(rotateShape180(a), b)) return true;
   return false;
 }
 
-window.Factory.isFullShapeOfType = function(shape, type) { if (!Array.isArray(shape)) return false; return shape.every(q => q && q.type === type); };
+window.Factory.isFullShapeOfType = function(shape, type) {
+  if (!Array.isArray(shape)) return false;
+  return shape.every(q => q && q.type === type);
+};
 
 window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
   const { state, DIRS, LEVELS, COLOR_MIXES, POWER_RADIUS, makeQuad } = window.Factory;
@@ -103,29 +76,44 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
   const activeGenerators = [];
   state.grid.forEach(b => {
     b.isPowered = false;
-    if (b.type === 'generator' || b.type === 'incinerator') { 
-      if ((b.fuelTimer || 0) > 0) { 
-        b.fuelTimer--; 
-        activeGenerators.push(b); 
-      } 
+    if (b.type === 'generator' || b.type === 'incinerator') {
+      if ((b.fuelTimer || 0) > 0) {
+        b.fuelTimer--;
+        activeGenerators.push(b);
+      }
     }
   });
 
   state.grid.forEach(b => {
     for (const gen of activeGenerators) {
-      if (Math.hypot(b.x - gen.x, b.y - gen.y) <= POWER_RADIUS) { b.isPowered = true; break; }
+      if (Math.hypot(b.x - gen.x, b.y - gen.y) <= POWER_RADIUS) {
+        b.isPowered = true;
+        break;
+      }
     }
   });
 
+  // Jeśli główny kafel maszyny 2x1 lub jego drugi segment (_sec) jest w zasięgu prądu, cała maszyna ma prąd!
+  state.grid.forEach(b => {
+    if (b.partnerKey) {
+      const partner = state.grid.get(b.partnerKey);
+      if (partner && partner.isPowered) b.isPowered = true;
+    }
+  });
+
+  // Czy gracz ma już odblokowane generatory prądu? (od Poziomu 6, czyli currentLvlIndex >= 5)
+  const powerRequiredForHeavy = state.currentLvlIndex >= 5;
+
   // --- KROK 2: LOGIKA MASZYN ---
   state.grid.forEach(b => {
+    // 1. Ekstraktor (pod prądem 2.5x szybciej!)
     if (b.type === 'miner') {
       const patch = state.patches.get(`${b.x},${b.y}`);
       if (!patch) return;
-      
+
       const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
-      b.timer = (b.timer || 0) + ((b.isPowered ? 2 : 1) * prestigeMult);
-      
+      b.timer = (b.timer || 0) + ((b.isPowered ? 2.5 : 1) * prestigeMult);
+
       if (b.timer >= state.minerInterval) {
         b.timer = 0;
         const dir = DIRS[b.rot];
@@ -145,6 +133,22 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
+    // 2. WYSYPISKO (Landfill) - Jeśli z przodu podłączono taśmociąg, wypompowuje Żużel (np. do Spalarni!)
+    if (b.type === 'landfill' && (b.storedWaste || 0) > 0) {
+      const fwd = DIRS[b.rot || 0];
+      const tx = b.x + fwd.x; const ty = b.y + fwd.y;
+      const target = state.grid.get(`${tx},${ty}`);
+      // Wypompowuje tylko wtedy, gdy przed wylotem Wysypiska postawiono taśmociąg lub Spalarnię
+      if (target && (target.type === 'belt' || target.type === 'incinerator')) {
+        const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
+        if (!occ) {
+          b.storedWaste--;
+          state.beltItems.push({ curX: tx, curY: ty, isDye: false, isWaste: true, shape: null, progress: 0 });
+        }
+      }
+    }
+
+    // 3. Przecinarka 2x1
     if (b.type === 'cutter' && b.storedShape) {
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
       const secX = b.x + right.x; const secY = b.y + right.y;
@@ -175,6 +179,7 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
+    // 4. Rotator
     if (b.type === 'rotator' && b.storedShape) {
       const fwd = DIRS[b.rot]; const tx = b.x + fwd.x; const ty = b.y + fwd.y;
       const target = state.grid.get(`${tx},${ty}`);
@@ -185,6 +190,7 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
+    // 5. Monter 2x1
     if (b.type === 'merger' && b.storedLeft && b.storedRight) {
       const fwd = DIRS[b.rot];
       const tx = b.x + fwd.x; const ty = b.y + fwd.y;
@@ -197,16 +203,18 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
+    // 6. Lakiernia 2x1 (WYMAGA PRĄDU!)
     if (b.type === 'painter' && b.storedLeft && b.storedRight) {
+      if (!b.isPowered) return; // Bez prądu Lakiernia stoi!
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
-      const outMain = { x: b.x + fwd.x, y: b.y + fwd.y }; 
-      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; 
-      
+      const outMain = { x: b.x + fwd.x, y: b.y + fwd.y };
+      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y };
+
       const targetMain = state.grid.get(`${outMain.x},${outMain.y}`);
       const targetSec = state.grid.get(`${outSec.x},${outSec.y}`);
       const occMain = state.beltItems.some(i => i.curX === outMain.x && i.curY === outMain.y);
       const occSec = state.beltItems.some(i => i.curX === outSec.x && i.curY === outSec.y);
-      
+
       if (targetMain && targetSec && !occMain && !occSec) {
         const painted = b.storedLeft.map(quad => quad ? { type: quad.type, color: b.storedRight } : null);
         state.beltItems.push({ curX: outMain.x, curY: outMain.y, isDye: false, isWaste: false, shape: painted, progress: 0 });
@@ -215,8 +223,10 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
+    // 7. Mieszalnik 2x1 (WYMAGA PRĄDU!)
     if (b.type === 'mixer' && b.storedLeft && b.storedRight) {
-      const fwd = DIRS[b.rot]; 
+      if (!b.isPowered) return; // Bez prądu Mieszalnik stoi!
+      const fwd = DIRS[b.rot];
       const tx = b.x + fwd.x; const ty = b.y + fwd.y;
       const target = state.grid.get(`${tx},${ty}`);
       const occ = state.beltItems.some(i => i.curX === tx && i.curY === ty);
@@ -227,38 +237,41 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
+    // 8. Syntezator 2x1 (Od Poziomu 6 WYMAGA PRĄDU; na Poziomie 5 bez prądu działa 4x wolniej)
     if (b.type === 'synthesizer' && b.storedLeft && b.storedRight) {
+      if (powerRequiredForHeavy && !b.isPowered) return; // Od Poz. 6 wymaga zasilania!
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
-      const outMain = { x: b.x + fwd.x, y: b.y + fwd.y }; 
-      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y }; 
-      
+      const outMain = { x: b.x + fwd.x, y: b.y + fwd.y };
+      const outSec = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y };
+
       const targetMain = state.grid.get(`${outMain.x},${outMain.y}`);
       const targetSec = state.grid.get(`${outSec.x},${outSec.y}`);
       const occMain = state.beltItems.some(i => i.curX === outMain.x && i.curY === outMain.y);
       const occSec = state.beltItems.some(i => i.curX === outSec.x && i.curY === outSec.y);
-      
+
       if (targetMain && targetSec && !occMain && !occSec) {
         const circleColor = b.storedLeft[0] ? b.storedLeft[0].color : 'uncolored';
         const squareColor = b.storedRight[0] ? b.storedRight[0].color : 'uncolored';
         const starColor = circleColor !== 'uncolored' ? circleColor : (squareColor !== 'uncolored' ? squareColor : 'uncolored');
-        
+
         const q = makeQuad('star', starColor);
-        state.beltItems.push({ curX: outMain.x, curY: outMain.y, isDye: false, isWaste: false, shape: [{ ...q }, { ...q }, { ...q }, { ...q }], progress: 0 }); 
-        state.beltItems.push({ curX: outSec.x, curY: outSec.y, isDye: false, isWaste: true, shape: null, progress: 0 }); 
-        
+        state.beltItems.push({ curX: outMain.x, curY: outMain.y, isDye: false, isWaste: false, shape: [{ ...q }, { ...q }, { ...q }, { ...q }], progress: 0 });
+        state.beltItems.push({ curX: outSec.x, curY: outSec.y, isDye: false, isWaste: true, shape: null, progress: 0 });
+
         b.storedLeft = null; b.storedRight = null;
       }
     }
 
+    // 9. Rozdzielacz 2x1
     if (b.type === 'splitter' && b.storedItem) {
       const fwd = DIRS[b.rot]; const right = DIRS[(b.rot + 1) % 4];
       const mainOut = { x: b.x + fwd.x, y: b.y + fwd.y };
       const secOut = { x: b.x + right.x + fwd.x, y: b.y + right.y + fwd.y };
-      
+
       b.splitToggle = (b.splitToggle || 0) % 2;
       const targets = [mainOut, secOut];
       const firstIdx = b.splitToggle; const secondIdx = 1 - firstIdx;
-      
+
       for (const idx of [firstIdx, secondIdx]) {
         const tPos = targets[idx]; const tCell = state.grid.get(`${tPos.x},${tPos.y}`);
         const occ = state.beltItems.some(i => i.curX === tPos.x && i.curY === tPos.y);
@@ -269,6 +282,7 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
       }
     }
 
+    // 10. Tunele
     if (b.type === 'tunnel_in' && (b.storedShape || b.storedDye || b.hasWasteStored)) {
       const dir = DIRS[b.rot];
       for (let dist = 1; dist <= 5; dist++) {
@@ -281,10 +295,10 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
           if (destCell && !blocked) {
             if (b.hasWasteStored) {
               state.beltItems.push({ curX: destX, curY: destY, isDye: false, isWaste: true, shape: null, progress: 0 }); b.hasWasteStored = false;
-            } else if (b.storedShape) { 
-              state.beltItems.push({ curX: destX, curY: destY, isDye: false, isWaste: false, shape: b.storedShape, progress: 0 }); b.storedShape = null; 
-            } else { 
-              state.beltItems.push({ curX: destX, curY: destY, isDye: true, isWaste: false, dyeColor: b.storedDye, progress: 0 }); b.storedDye = null; 
+            } else if (b.storedShape) {
+              state.beltItems.push({ curX: destX, curY: destY, isDye: false, isWaste: false, shape: b.storedShape, progress: 0 }); b.storedShape = null;
+            } else {
+              state.beltItems.push({ curX: destX, curY: destY, isDye: true, isWaste: false, dyeColor: b.storedDye, progress: 0 }); b.storedDye = null;
             }
           }
           break;
@@ -293,7 +307,7 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     }
   });
 
-  // --- KROK 3: WCHŁANIANIE PRZEZ HUB ---
+  // --- KROK 3: WCHŁANIANIE PRZEZ HUB (Żużel ma całkowity zakaz wjazdu!) ---
   let changed = false;
   let gainedMatterTick = 0; let gainedScienceTick = 0;
   const prestigeMult = 1 + (state.quantumCores || 0) * 0.25;
@@ -303,15 +317,12 @@ window.Factory.runSimulationTick = function(onUIUpdate, onLevelUp) {
     const cell = state.grid.get(`${item.curX},${item.curY}`);
 
     if (cell && cell.type === 'hub') {
-      if (item.isWaste) {
-        state.beltItems.splice(i, 1);
-        continue; 
-      }
+      if (item.isWaste) continue; // Hub nigdy nie przyjmuje odpadów!
 
       const hasStar = !item.isDye && Array.isArray(item.shape) && item.shape.some(q => q && q.type === 'star');
-      const sPoints = Math.floor((hasStar ? 5 : 1) * prestigeMult); 
+      const sPoints = Math.floor((hasStar ? 5 : 1) * prestigeMult);
       const mPoints = Math.floor((hasStar ? 10 : 2) * prestigeMult);
-      
+
       gainedScienceTick += sPoints; gainedMatterTick += mPoints; changed = true;
 
       if (!item.isDye) {

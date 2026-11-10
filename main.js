@@ -418,12 +418,15 @@
     if (nextCell.type === 'belt' || nextCell.type === 'hub') return true;
 
     if (item.isWaste) {
+      if (nextCell.type === 'belt') return true;
       if (nextCell.type === 'incinerator') return true;
       if (nextCell.type === 'landfill') return (nextCell.storedWaste || 0) < 100;
       if (nextCell.type === 'splitter') return !nextCell.storedItem;
       if (nextCell.type === 'tunnel_in') return !nextCell.storedShape && !nextCell.storedDye && !nextCell.hasWasteStored;
-      return false;
+      return false; // Blokuje wjazd do Huba!
     }
+
+    if (nextCell.type === 'belt' || nextCell.type === 'hub') return true;
 
     if (nextCell.type === 'cutter') return !item.isDye && !nextCell.storedShape;
     if (nextCell.type === 'rotator') return !item.isDye && !nextCell.storedShape;
@@ -596,7 +599,12 @@
     lastTime = now;
     for (let i = state.beltItems.length - 1; i >= 0; i--) {
       const item = state.beltItems[i];
-      item.progress += dt * state.beltSpeed;
+      const cell = state.grid.get(`${item.curX},${item.curY}`);
+      if (!cell) { state.beltItems.splice(i, 1); continue; }
+
+      // Taśmociągi w zasięgu prądu jadą o 50% szybciej!
+      const speedBoost = (cell.isPowered ? 1.5 : 1.0);
+      item.progress += dt * state.beltSpeed * speedBoost;
       if (item.progress >= 1.0) {
         const cell = state.grid.get(`${item.curX},${item.curY}`);
         if (!cell) { state.beltItems.splice(i, 1); continue; }
